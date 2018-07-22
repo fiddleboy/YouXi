@@ -131,19 +131,19 @@ module frame_counter(
 	reg [2:0] signal0;
 	always @(*) begin
 		if(ld_white) begin
-			signal0 <= 3'b111;
+			signal0 = 3'b111;
 		end
 		else begin
-			signal0 <= (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
+			signal0 = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
 		end
 	end
 
 	reg signal;
 	always @(*) begin
 		if (ld_white == 1)
-			signal <= clk;
+			signal = clk;
 		else
-			signal <= (count == 4'b1111) ? 1 : 0
+			signal = (count == 4'b1111) ? 1 : 0
 	end
 
 	assign frame_enable = signal;
@@ -156,6 +156,10 @@ module x_counter(
 	input resetn, enable, direction, ld_white,
 	output reg [7:0] x_pos
 );
+
+
+	wire
+
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
 			x_pos <= 8'b0000_0000;
@@ -268,7 +272,7 @@ endmodule
 
 module control(
 	input clk, resetn, go,
-	output reg enable, ld_color, writeEn, ld_white
+	output reg enable, ld_color, writeEn, ld_white, x_pos, y_pos
     );
 
 	reg [2:0] current_state, next_state;
@@ -296,6 +300,8 @@ module control(
 		writeEn = 1'b0;
 		enable = 1'b0;
 		ld_white = 1'b0; // modification.......................................................................
+		x_pos = 8'd0;
+		y_pos = 7'd0;
 
 		case (current_state)
 			BORDER: begin
@@ -303,6 +309,8 @@ module control(
 				ld_color = 1'b1;
 				writeEn = 1'b1;
 				enable = 1'b1;
+				x_pos = 8'd15;
+				y_pos = 7'd20;
 			end			
 			LOAD_COLOR: begin
 				// ld_color = 1'b1;
@@ -372,17 +380,17 @@ module datapath(
 	reg [1:0] signal0;
 	always@(*) begin
 		if (ld_white)
-			signal0 <= 0;
+			signal0 = 0;
 		else
-			signal0 <= counter[1:0];
+			signal0 = counter[1:0];
 	end
 
 	reg [1:0] signal;
 	always@(*) begin
 		if (ld_white)
-			signal <= 0;
+			signal = 0;
 		else
-			signal <= counter[3:2];
+			signal = counter[3:2];
 	end
 
 	assign x_out = x + signal0;
@@ -391,45 +399,6 @@ module datapath(
 
 endmodule
 
-
-// module counter(clock,reset_n,enable,q);
-// 	input clock,reset_n,enable;
-// 	output reg [1:0] q;
-
-// 	always @(posedge clock)
-// 	begin
-// 		if(reset_n == 1'b0)
-// 			q <= 2'b00;
-// 		else if(enable == 1'b1)
-// 		begin
-// 		  if(q == 2'b11)
-// 			  q <= 2'b00;
-// 		  else
-// 			  q <= q + 1'b1;
-// 		end
-//    end
-// endmodule
-
-
-module rate_counter(clock,reset_n,enable,q);
-		input clock;
-		input reset_n;
-		input enable;
-		output reg [1:0] q;
-
-		always @(posedge clock)
-		begin
-			if(reset_n == 1'b0)
-				q <= 2'b11;
-			else if(enable ==1'b1)
-			begin
-			   if ( q == 2'b00 )
-					q <= 2'b11;
-				else
-					q <= q - 1'b1;
-			end
-		end
-endmodule
 
 module process(
 	input clk, enable, resetn, load_color, ld_white,
