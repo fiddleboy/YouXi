@@ -69,6 +69,7 @@ module game
 	datapath data0(
 		.clk(CLOCK_50),
 		.reset(reset),
+        .enable(enable),
         .b_top(b_top),
         .b_bottom(b_bottom),
 		.x_out(x),
@@ -84,7 +85,8 @@ module game
 		.go(!(KEY[1])),
         .b_top(b_top),
         .b_bottom(b_bottom),
-		.writeEn(writeEn)	
+		.writeEn(writeEn),
+        .enable(enable)	
 	);
 endmodule
 
@@ -141,17 +143,23 @@ module control(
     reg [3:0] current_state, next_state;
     wire hold, delay_enable;
 
-    delay_counter dc0(clk, reset, enable, delay_enable);        //count 1/60 sec
-    one_sec_counter(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
+    // delay_counter dc0(clk, reset, enable, delay_enable);        //count 1/60 sec
+    // one_sec_counter(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
 
 
-    localparam  BORDER_TOP = 4'd0,
-                BORDER_BOTTOM = 4'd1;
+    localparam  START = 4'd0,
+                START_WAIT = 4'd1,
+                BORDER_TOP = 4'd2,
+                BORDER_TOP_WAIT = 4'd3,
+                BORDER_BOTTOM = 4'd4;
 
     always @(*)
     begin: state_table
         case (current_state)
-            BORDER_TOP: next_state = (hold) ? BORDER_BOTTOM : BORDER_TOP;
+            START: next_state = go ? START_WAIT : START;
+            START_WAIT: next_state = go ? START_WAIT : BORDER_TOP;
+            BORDER_TOP: next_state = go ? BORDER_TOP_WAIT : BORDER_TOP;
+            BORDER_TOP_WAIT: next_state = go ? BORDER_TOP_WAIT : BORDER_BOTTOM;
         endcase
     end
 
@@ -163,12 +171,24 @@ module control(
         enable = 1'b0;
 
         case (current_state)
+            START: begin
+            end
+            START_WAIT: begin
+            end
             BORDER_TOP: begin
                 enable = 1'b1;
                 b_top = 1'b1;
+                b_bottom = 1'b0;
+                writeEn = 1'b1;
+            end
+            BORDER_TOP_WAIT: begin
+                enable = 1'b1;
+                b_top = 1'b1;
+                b_bottom = 1'b0;
                 writeEn = 1'b1;
             end
             BORDER_BOTTOM: begin
+                enable = 1'b1;
                 b_top = 1'b0;
                 b_bottom = 1'b1;
                 writeEn = 1'b1;
@@ -182,7 +202,7 @@ endmodule
 
 
 module x_counter(
-    input clk60, reset, b_top, b_bottom,
+    input clk60, enable, reset, b_top, b_bottom,
     output reg [7:0] x_out
 );
     reg [7:0] x_initial_pos;
@@ -195,8 +215,12 @@ module x_counter(
     always @(posedge clk60) begin
         if (!reset)
             x_out <= x_initial_pos;
-        else if (b_top || b_bottom) begin
-            x_out <= x_out + 1'b1;
+        else if (enable) begin
+            if (b_top || b_bottom) begin
+                if (x_out < 140)
+                    x_out <= x_out + 1'b1;
+            end
+            
         end
     end
 
@@ -204,36 +228,47 @@ endmodule
 
 
 module y_counter(
-    input clk60, reset, b_top, b_bottom, 
+    input clk60, enable, reset, b_top, b_bottom, 
     output reg [6:0] y_out
 );
 
-	 reg [6:0] y_initial_pos;
     always @(*)
     begin
         if (b_top)
-            y_initial_pos = 7'd20;
+            y_out = 7'd20;
         else if (b_bottom)
-            y_initial_pos = 7'd105;
+            y_out = 7'd105;
     end
+
+
+
+
+	// reg [6:0] y_initial_pos;
+    // always @(*)
+    // begin
+    //     if (b_top)
+    //         y_initial_pos = 7'd20;
+    //     else if (b_bottom)
+    //         y_initial_pos = 7'd105;
+    // end
     
-    always @(posedge clk60) begin
-        if (!reset)
-            y_out <= y_initial_pos;
-        else if (b_top) begin
-            y_out <= 7'd20;
-        end
-        else if (b_bottom) begin
-            y_out <= 7'd105;
-        end
-    end
+    // always @(posedge clk60) begin
+    //     if (!reset)
+    //         y_out <= y_initial_pos;
+    //     else if (b_top) begin
+    //         y_out <= 7'd20;
+    //     end
+    //     else if (b_bottom) begin
+    //         y_out <= 7'd105;
+    //     end
+    // end
 
 
 endmodule
 
 
 module datapath(
-    input clk, reset, b_top, b_bottom,
+    input clk, reset, enable, b_top, b_bottom,
     output [7:0] x_out,
     output [6:0] y_out,
     output [2:0] color_out
@@ -246,7 +281,7 @@ module datapath(
     delay_counter d_c(  
         .clk(clk), 
         .reset(reset), 
-        .enable(1'b1), 
+        .enable(enable), 
         .delay_enable(delay_enable)
         );
 
@@ -254,6 +289,7 @@ module datapath(
 
     x_counter x_c0(
         .clk60(delay_enable),
+        .enable(enable),
         .b_top(b_top),
         .b_bottom(b_bottom),
         .x_out(x_pos)
@@ -262,24 +298,31 @@ module datapath(
 
     y_counter y_c0(
         .clk60(delay_enable),
+        .enable(enable),
         .b_top(b_top),
         .b_bottom(b_bottom),
         .y_out(y_pos)
     );
 
 
-    draw d0(
-        .clk(delay_enable),
-        .reset(reset),
-        .b_top(b_top),
-        .b_bottom(b_bottom),
-        .x_in(x_pos),
-        .y_in(y_pos),
-        .color_in(3'b001),
-        .x_out(x_out),
-        .y_out(y_out),
-        .color_out(color_out)
-    );
+
+    assign x_out = x_pos;
+    assign y_out = y_pos;
+    assign color_out = 3'b111;
+
+
+    // draw d0(
+    //     .clk(delay_enable),
+    //     .reset(reset),
+    //     .b_top(b_top),
+    //     .b_bottom(b_bottom),
+    //     .x_in(x_pos),
+    //     .y_in(y_pos),
+    //     .color_in(3'b001),
+    //     .x_out(x_out),
+    //     .y_out(y_out),
+    //     .color_out(color_out)
+    // );
 
 endmodule
 
