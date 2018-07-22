@@ -1,4 +1,4 @@
-module game
+module part3
 	(
 		CLOCK_50,						//	On Board 50 MHz
 		// Your inputs and outputs here
@@ -37,7 +37,7 @@ module game
 	wire [2:0] colour;
 	wire [7:0] x;
 	wire [6:0] y;
-	wire writeEn, ld_x, ld_y, ld_color, enable, ld_white;
+	wire writeEn, ld_x, ld_y, ld_color, enable;
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -68,7 +68,6 @@ module game
 		.enable(enable),
 		.resetn(resetn),
 		.load_color(ld_color),
-        .ld_white(ld_white),
 		.color_in(SW[9:7]),
 		.x_out(x),
 		.y_out(y),
@@ -81,8 +80,7 @@ module game
 		.go(!(KEY[1])),
 		.enable(enable),
 		.ld_color(ld_color),
-		.writeEn(writeEn),
-        .ld_white(ld_white)	
+		.writeEn(writeEn)	
 	);
 endmodule
 
@@ -90,7 +88,7 @@ endmodule
 
 module delay_counter(
 	input clk, resetn, enable,
-	output delay_enable;
+	output delay_enable
 );
 	reg [19:0] count;
 	always @(posedge clk) begin
@@ -110,7 +108,7 @@ endmodule
 
 
 module frame_counter(
-	input clk, resetn, enable, ld_white,
+	input clk, resetn, enable,
 	input [2:0] color_in,
 	output frame_enable,
 	output [2:0] color_out
@@ -128,52 +126,23 @@ module frame_counter(
 		end
 	end
 
-	reg [2:0] signal0;
-	always @(*) begin
-		if(ld_white) begin
-			signal0 <= 3'b111;
-		end
-		else begin
-			signal0 <= (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
-		end
-	end
-
-	reg signal;
-	always @(*) begin
-		if (ld_white == 1)
-			signal <= clk;
-		else
-			signal <= (count == 4'b1111) ? 1 : 0
-	end
-
-	assign frame_enable = signal;
-	assign color_out = signal0;
-
+	assign frame_enable = (count == 4'b1111) ? 1 : 0;
+	assign color_out = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
 endmodule
 
 
 module x_counter(
-	input resetn, enable, direction, ld_white,
+	input resetn, enable, direction,
 	output reg [7:0] x_pos
 );
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
 			x_pos <= 8'b0000_0000;
 		else begin
-			if (ld_white) begin
-				if (x_pos == 140) begin
-					x_pos <= x_pos;
-				end
-				else begin
-					x_pos <= x_pos + 1'b1;
-				end	
-			end
-			else begin
-				if (direction)
-					x_pos <= x_pos + 1'b1;
-				else
-					x_pos <= x_pos - 1'b1;
-			end
+			if (direction)
+				x_pos <= x_pos + 1'b1;
+			else
+				x_pos <= x_pos - 1'b1;
 		end
 
 	end
@@ -182,25 +151,17 @@ endmodule
 
 
 module y_counter(
-	input resetn, enable, direction, ld_white,
+	input resetn, enable, direction,
 	output reg [6:0] y_pos
 );
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
 			y_pos <= 7'b0111100;
 		else begin
-			if (ld_white) begin
-				if(y_pos == 105)
-					y_pos <= y_pos;
-				else
-					y_pos <= y_pos + 1'b1;
-			end
-			else begin
-				if (direction)
-					y_pos <= y_pos + 1'b1;
-				else
-					y_pos <= y_pos - 1'b1;
-			end
+			if (direction)
+				y_pos <= y_pos + 1'b1;
+			else
+				y_pos <= y_pos - 1'b1;
 		end
 	end
 
@@ -217,14 +178,14 @@ module r_h(
 			direction <= 1;
 		else begin
 			if (direction) begin
-				if (x + 1 > 8'd140)
+				if (x + 1 > 8'd156)
 					direction <= 1'b0;
 				else
 					direction <= 1;
 			end
 
 			else begin
-				if (x - 1 < 8'd15)
+				if (x == 8'b0000_0000)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
@@ -233,6 +194,8 @@ module r_h(
 		end
 
 	end
+
+
 endmodule
 
 
@@ -246,14 +209,14 @@ module r_v(
 			direction <= 1;
 		else begin
 			if (direction) begin
-				if (y + 1 > 7'd105)
+				if (y + 1 > 7'd116)
 					direction <= 1'b0;
 				else
 					direction <= 1;
 			end
 
 			else begin
-				if (y == 7'd20)
+				if (y == 7'b0000000)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
@@ -268,24 +231,21 @@ endmodule
 
 module control(
 	input clk, resetn, go,
-	output reg enable, ld_color, writeEn, ld_white
-    );
+	output reg enable, ld_color, writeEn);
 
 	reg [2:0] current_state, next_state;
 
-	localparam  BORDER = 4'd0,
-				LOAD_COLOR = 4'd1,
-				LOAD_COLOR_WAIT = 4'd2,
-				PLOT = 4'd3;
+	localparam  LOAD_COLOR = 3'd0,
+				LOAD_COLOR_WAIT = 3'd1,
+				PLOT = 3'd2;
 	//state table
 	always @(*) 
 	begin: state_table
 		case (current_state)
-			BORDER: next_state = LOAD_COLOR;		
 			LOAD_COLOR: next_state = go ? LOAD_COLOR_WAIT : LOAD_COLOR;
 			LOAD_COLOR_WAIT: next_state = go ? LOAD_COLOR_WAIT : PLOT;
 			PLOT: next_state = PLOT;
-			default: next_state = BORDER;
+			default: next_state = LOAD_COLOR;
 		endcase
 	end
 
@@ -295,15 +255,9 @@ module control(
 		ld_color = 1'b0;
 		writeEn = 1'b0;
 		enable = 1'b0;
-		ld_white = 1'b0; // modification.......................................................................
 
 		case (current_state)
-			BORDER: begin
-				ld_white = 1'b1;
-				ld_color = 1'b1;
-				writeEn = 1'b1;
-				enable = 1'b1;
-			end			
+			
 			LOAD_COLOR: begin
 				// ld_color = 1'b1;
 			end
@@ -331,7 +285,7 @@ endmodule
 
 
 module datapath(
-	input clk, enable, resetn, ld_color, ld_white,
+	input clk, enable, resetn, ld_color,
 	input [7:0] x_in, 
 	input [6:0] y_in,
 	input [2:0] color_in,
@@ -360,6 +314,7 @@ module datapath(
 	end
 
 	reg [3:0] counter;
+	
 	always @(posedge clk) begin
 		if (!resetn)
 			counter <= 4'b0000;
@@ -369,46 +324,44 @@ module datapath(
 				counter <= counter + 1'b1;
 	end
 
-	reg [1:0] signal0;
-	always@(*) begin
-		if (ld_white)
-			signal0 <= 0;
-		else
-			signal0 <= counter[1:0];
-	end
+	// wire c1, c2, c3, enable_1;
+	// counter cr1(clk,resetn,enable,c1);
+	// rate_counter rc2(clk,resetn,enable,c2);
+	// assign enable_1 = (c2 == 2'b00) ? 1 : 0;
+	// counter cr3(clk,resetn,enable_1,c3);
 
-	reg [1:0] signal;
-	always@(*) begin
-		if (ld_white)
-			signal <= 0;
-		else
-			signal <= counter[3:2];
-	end
-
-	assign x_out = x + signal0;
-	assign y_out = y + signal;
+	assign x_out = x + counter[1:0];
+	assign y_out = y + counter[3:2];
 	assign color_out = color;
+
+	// assign x_out = x + c1;
+	// assign y_out = y + c3;
+	// assign color_out = color;
+
+	// assign x_out = x;
+	// assign y_out = y;
+	// assign color_out = color;
 
 endmodule
 
 
-// module counter(clock,reset_n,enable,q);
-// 	input clock,reset_n,enable;
-// 	output reg [1:0] q;
+module counter(clock,reset_n,enable,q);
+	input clock,reset_n,enable;
+	output reg [1:0] q;
 
-// 	always @(posedge clock)
-// 	begin
-// 		if(reset_n == 1'b0)
-// 			q <= 2'b00;
-// 		else if(enable == 1'b1)
-// 		begin
-// 		  if(q == 2'b11)
-// 			  q <= 2'b00;
-// 		  else
-// 			  q <= q + 1'b1;
-// 		end
-//    end
-// endmodule
+	always @(posedge clock)
+	begin
+		if(reset_n == 1'b0)
+			q <= 2'b00;
+		else if(enable == 1'b1)
+		begin
+		  if(q == 2'b11)
+			  q <= 2'b00;
+		  else
+			  q <= q + 1'b1;
+		end
+   end
+endmodule
 
 
 module rate_counter(clock,reset_n,enable,q);
@@ -432,7 +385,7 @@ module rate_counter(clock,reset_n,enable,q);
 endmodule
 
 module process(
-	input clk, enable, resetn, load_color, ld_white,
+	input clk, enable, resetn, load_color, 
 	input [2:0] color_in,
 	output [7:0] x_out,
 	output [6:0] y_out,
@@ -447,13 +400,12 @@ module process(
 	wire [2:0] color;
 	wire delay_enable;
 	wire frame_enable;
-	wire ld_white;
 
 	delay_counter d_c(.clk(clk), .resetn(resetn), .enable(enable), .delay_enable(delay_enable));
-	frame_counter f_c(.ld_white(ld_white), .clk(clk), .resetn(resetn), .enable(delay_enable), .color_in(color_in), .frame_enable(frame_enable), .color_out(color));
+	frame_counter f_c(.clk(clk), .resetn(resetn), .enable(delay_enable), .color_in(color_in), .frame_enable(frame_enable), .color_out(color));
 	
-	x_counter x_c(.ld_white(ld_white), .resetn(resetn), .enable(frame_enable), .x_pos(x_pos), .direction(x_direction));
-	y_counter y_c(.ld_white(ld_white), .resetn(resetn), .enable(frame_enable), .y_pos(y_pos), .direction(y_direction));
+	x_counter x_c(.resetn(resetn), .enable(frame_enable), .x_pos(x_pos), .direction(x_direction));
+	y_counter y_c(.resetn(resetn), .enable(frame_enable), .y_pos(y_pos), .direction(y_direction));
 
 	r_h register_h(.clk(clk), .resetn(resetn), .x(x_pos), .direction(x_direction));
 	r_v register_v(.clk(clk), .resetn(resetn), .y(y_pos), .direction(y_direction));
@@ -463,7 +415,6 @@ module process(
 		.enable(enable),
 		.resetn(resetn), 
 		.ld_color(load_color),
-		.ld_white(ld_white),
 		.x_in(x_pos),
 		.y_in(y_pos),
 		.color_in(color),
