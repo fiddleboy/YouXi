@@ -173,10 +173,9 @@ module control(
 				LEFT_WAIT = 4'd5,
 				RIGHT = 4'd6,
 				RIGHT_WAIT = 4'd7,
-				LD_COLOR = 4'd8;          // part3 starts...
-				LOAD_COLOR = 3'd0,      
-				LOAD_COLOR_WAIT = 3'd1,
-				PLOT = 3'd2;
+				LD_COLOR = 4'd8;          // part3 starts...  
+				LD_COLOR_WAIT = 4'd9,
+				PLOT = 4'd10;
 	//reset
 	always @(posedge clk) begin
 		if (!resetn)
