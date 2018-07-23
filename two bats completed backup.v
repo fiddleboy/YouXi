@@ -1,3 +1,5 @@
+
+
 module game
 	(
 		CLOCK_50,						//	On Board 50 MHz
@@ -52,29 +54,6 @@ module game
 	wire [7:0] x;
 	wire [6:0] y;
 	wire writeEn, ld_top, ld_bottom, ld_left, ld_right, ld_color, enable;
-	wire move_left0, move_right0；
-
-
-	// assign move_left0 = (SW[1] == 1'b1 && SW[0] == 1'b0) ? 1b'1 : 1'b0;
-	// assign move_right0 = (SW[1] == 1'b0 && SW[0] == 1'b1) ? 1b'1 : 1'b0;
-	// assign move_left0 = ()
-
-
-	always @(*) begin
-		if ((SW[1] & SW[0]) | (!SW[1] & !SW[0])) begin
-			move_left0 = 1'b0;
-			move_right0 = 1'b0;
-		end
-		else if (SW[1] & ~SW[0]) begin
-			move_left0 = 1'b1;
-			move_right0 = 1'b0;
-		end
-		else if (~SW[1] & SW[0]) begin
-			move_left0 = 1'b0;
-			move_right0 = 1'b1;
-		end
-	end
-
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -106,14 +85,14 @@ module game
 	wire [6:0] y_p;
 	wire [2:0] color_p;	
 	process p0(
-		.clk(CLOCK_50), 
-		.enable(enable), 
-		.resetn(resetn), 
-		.ld_color(ld_color), 
-		.color_in(SW[9:7]),
-		.x_out(x_p),
-		.y_out(y_p),
-		.color_out(color_p)
+	.clk(CLOCK_50), 
+	.enable(enable), 
+	.resetn(resetn), 
+	.ld_color(ld_color), 
+	.color_in(SW[9:7]),
+	.x_out(x_p),
+	.y_out(y_p),
+	.color_out(color_p)
 	);
 
 	wire [7:0] x_b;
@@ -132,6 +111,7 @@ module game
 		.color_out(color_b)
 	);
    
+   
 	wire hold;
     control c0(
 		.clk(CLOCK_50),
@@ -146,13 +126,13 @@ module game
 		.enable(enable),
 		.hold(hold)
 	);
-
 	assign LEDR[0] = ld_top;
 	assign LEDR[1] = ld_bottom;
 	assign LEDR[2] = ld_left;
 	assign LEDR[3] = ld_right;
 	assign LEDR[4] = enable;
 	assign LEDR[9] = hold;
+
 
 	reg [7:0] x_temp;
 	reg [6:0] y_temp;
@@ -310,9 +290,9 @@ module border_datapath(
 
 	always @(posedge clk) begin
 		if (!resetn) begin
-			x <= 8'd0;
-			y <= 7'd0;
-			color <= 3'b000;
+			x <= 8'b0;
+			y <= 7'b0;
+			color <= 3'b0;
 		end
 		else begin
 			if (ld_top) begin
@@ -328,7 +308,7 @@ module border_datapath(
 			end
 			else if (ld_bottom) begin
 				x <= 8'd74;
-				y <= 7'd110;
+				y <= 7'd108;
 				color <= 3'b010;
 			end
 			else if (ld_right) begin
@@ -350,12 +330,12 @@ module border_datapath(
 			if (enable) 
 			begin
 				if(ld_left || ld_right) 
-					begin
-						if (counter < 8'd100)
-							counter <= counter + 1'b1;	
-						else
-							counter <= 7'd0;															
-					end
+				begin
+					if (counter < 8'd100)
+						counter <= counter + 1'b1;	
+					else
+						counter <= 7'd0;															
+				end
 				else 
 					begin
 						if(counter < 8'd12)
@@ -532,7 +512,7 @@ endmodule
 
 
 module r_v(
-	input clk, resetn, x, x_paddle
+	input clk, resetn,
 	input [6:0] y,
 	output reg direction
 );
@@ -540,18 +520,13 @@ module r_v(
 		if (!resetn)
 			direction <= 0;
 		else begin
-			if (direction) begin            // down direction
+			if (direction) begin
 				if (y + 3 > 7'd107)
-					begin
-						if (x+1>x_paddle && x-1<x_paddle+20)				
-							direction <= 1'b0;
-						else
-							direction <= 1'b1;																			
-					end
+					direction <= 1'b0;
 				else
 					direction <= 1'b1;
 			end
-			else begin                      // up direction
+			else begin
 				if (y - 3 < 7'd12)
 					direction <= 1'b1;
 				else
@@ -596,25 +571,24 @@ module draw(
 	//2x2 pixel block
 	reg [1:0] counter;
 	
-	always @(posedge clk) 
-	begin
+	always @(posedge clk) begin
 		if (!resetn)
 			counter <= 2'b00;
-		else if (enable) 
-		begin
-			if (counter == 2'b11)
+		else if (counter == 2'b11)
 				counter <= 2'b00;
-			else
+		else
 				counter <= counter + 1'b1;
-		end
 	end
+
 	assign x_out = x + counter[0];
 	assign y_out = y + counter[1];
 	assign color_out = color;
 
 
 	// 4x4 pixel block
+
 	// reg [3:0] counter;
+	
 	// always @(posedge clk) begin
 	// 	if (!resetn)
 	// 		counter <= 4'b0000;
@@ -623,9 +597,12 @@ module draw(
 	// 	else
 	// 			counter <= counter + 1'b1;
 	// end
+
 	// assign x_out = x + counter[1:0];
 	// assign y_out = y + counter[3:2];
 	// assign color_out = color;
+
+	
 	// 1x1 pixel block
 	// assign x_out = x;
 	// assign y_out = y;
@@ -635,69 +612,8 @@ module draw(
 endmodule
 
 
-module draw_paddle(
-	input clk, enable, resetn, 
-	input move_left, move_right,
-	output [7:0] x_out,
-	output [6:0] y_out,
-	output [2:0] color_out
-);
-	// wire delay_enable;
-	// delay_counter d_c(
-	// 	.clk(clk), 
-	// 	.resetn(resetn), 
-	// 	.enable(enable), 
-	// 	.delay_enable(delay_enable)
-	// 	);
-
-	// frame_counter f_c(
-	// 	.clk(clk), 
-	// 	.resetn(resetn), 
-	// 	.enable(delay_enable), 
-	// 	.color_in(3'b011), 
-	// 	.frame_enable(frame_enable), 
-	// 	.color_out(color_out)
-	// 	);
-
-	reg [7:0] x;
-
-	//reset or load
-	always @(posedge frame_enable) begin
-		if (!resetn) begin
-			x <= 8'd74;
-		end
-		else begin
-			if (move_left)
-				x <= x - 1;
-			else if (move_right)
-				x <= x + 1;
-			else
-				x <= x;													
-		end
-	end
-
-	reg [3:0] counter;
-	always @(posedge clk) 
-	begin
-		if (!resetn)
-			counter <= 4'd0;
-		else if (enable) 
-		begin
-			if (counter == 4'd12)
-				counter <= 4'd0;
-			else
-				counter <= counter + 1'b1;
-		end
-	end
-	assign x_out = x + counter[3:0];
-	assign y_out = 7'd110;
-	assign color_out = 3'b011;
-
-endmodule
-
-
 module process(
-	input clk, enable, resetn, ld_color, move_left0, move_right0,
+	input clk, enable, resetn, ld_color, 
 	input [2:0] color_in,
 	output [7:0] x_out,
 	output [6:0] y_out,
@@ -712,9 +628,6 @@ module process(
 	wire [2:0] color;
 	wire delay_enable;
 	wire frame_enable;
-	wire [7:0] x_ball, x_paddle;
-	wire [6:0] y_ball, y_paddle;
-	wire [2:0] color_ball, color_paddle;
 
 	delay_counter d_c(
 		.clk(clk), 
@@ -750,30 +663,16 @@ module process(
 		.clk(clk), 
 		.resetn(resetn), 
 		.x(x_pos), 
-		.direction(x_direction) //output
+		.direction(x_direction)
 		);
 
 	r_v register_v(
 		.clk(clk), 
 		.resetn(resetn), 
 		.y(y_pos), 
-		.x(x_pos),
-		.x_paddle(x_paddle),
 		.direction(y_direction)
 		);
-	
-	
-	draw_paddle data1(
-		.clk(clk),
-		.enable(enable),
-		.resetn(resetn),
-		.move_left(move_left0),
-		.move_right(move_right0),
-		.x_out(x_paddle),
-		.y_out(y_paddle),
-		.color_out(color_paddle)
-	);
-	
+
 	draw data(
 		.clk(clk),
 		.enable(enable),
@@ -782,16 +681,9 @@ module process(
 		.x_in(x_pos),
 		.y_in(y_pos),
 		.color_in(color),
-		.x_out(x_ball),
-		.y_out(y_ball),
-		.color_out(color_ball)
+		.x_out(x_out),
+		.y_out(y_out),
+		.color_out(color_out)
 		);
-
-	// wire out_indicator;
-	// assign out_indicator = clk;
-	assign x_out = clk ? x_ball : x_paddle;
-	assign y_out = clk ? y_ball : y_paddle;
-	assign color_out = clk ? color_ball : color_paddle;
-
 
 endmodule
