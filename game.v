@@ -116,7 +116,7 @@ module game
 	);
     // Instansiate FSM control
     // control c0(...);
-	
+	wire hold;
     control c0(
 		.clk(CLOCK_50),
 		.resetn(resetn),
@@ -127,8 +127,15 @@ module game
 		.ld_right(ld_right),
 		.writeEn(writeEn),
 		.ld_color(ld_color),		
-		.enable(enable)
+		.enable(enable),
+		.hold(hold)
 	);
+	assign LEDR[0] = ld_top;
+	assign LEDR[1] = ld_bottom;
+	assign LEDR[2] = ld_left;
+	assign LEDR[3] = ld_right;
+	assign LEDR[9] = hold;
+
 
 	reg [7:0] x_temp;
 	reg [6:0] y_temp;
@@ -155,14 +162,16 @@ endmodule
 
 module control(
 	input clk, resetn, go,
-	output reg ld_top, ld_bottom, ld_left, ld_right, writeEn, ld_color, enable
+	output reg ld_top, ld_bottom, ld_left, ld_right, writeEn, ld_color, enable,
+	output hold
 	);
 
-	wire enable, delay_enable; 
-	assign enable = writeEn;
-	delay_counter dc0(clk, resetn, enable, delay_enable);        //count 1/60 sec
-    one_sec_counter oc0(delay_enable, resetn, enable, hold);     // count 1sec, hold change every 1 sec
-
+	wire delay_enable;
+	// delay_counter dc0(clk, resetn, enable, delay_enable);        //count 1/60 sec
+    // one_sec_counter oc0(delay_enable, resetn, enable, hold);     // count 1sec, hold change every 1 sec
+	delay_counter dc0(.clk(clk), .resetn(resetn), .enable(writeEn), .delay_enable(delay_enable));        //count 1/60 sec
+    one_sec_counter o0(.clk60(delay_enable), .resetn(resetn), .enable(writeEn), .one_sec(hold));         // count 1sec, hold change every 1 sec
+	
 	
 	reg [3:0] current_state, next_state;
 	localparam  TOP = 4'd0,
@@ -173,9 +182,10 @@ module control(
 				LEFT_WAIT = 4'd5,
 				RIGHT = 4'd6,
 				RIGHT_WAIT = 4'd7,
-				LD_COLOR = 4'd8;          // part3 starts...  
-				LD_COLOR_WAIT = 4'd9,
-				PLOT = 4'd10;
+				// LD_COLOR = 4'd8,       // part3 starts...  
+				// LD_COLOR_WAIT = 4'd9,
+				PLOT = 4'd8;
+
 	//reset
 	always @(posedge clk) begin
 		if (!resetn)
@@ -184,6 +194,7 @@ module control(
 			current_state <= next_state;
 	end
 
+		
 	//state table
 	always @(*) 
 	begin: state_table
@@ -194,8 +205,11 @@ module control(
 			BOTTOM_WAIT: next_state = hold ? BOTTOM_WAIT : LEFT;
 			LEFT: next_state = hold ? LEFT_WAIT : LEFT;
 			LEFT_WAIT: next_state = hold ? LEFT_WAIT : RIGHT;
-			RIGHT: next_state = hold ? RIGHT_WAIT : RIGHT;
-			RIGHT_WAIT: next_state = hold ? RIGHT_WAIT : LD_COLOR;
+			RIGHT: next_state = go ? RIGHT_WAIT : RIGHT;
+			RIGHT_WAIT: next_state = go ? RIGHT_WAIT : PLOT;
+			// LD_COLOR: next_state = PLOT;
+			// LD_COLOR_WAIT: next_state = go ? LD_COLOR_WAIT : PLOT;
+			PLOT: next_state = PLOT;
 			default: next_state = TOP;
 		endcase
 	end
@@ -248,9 +262,17 @@ module control(
 				writeEn = 1'b1;
 				ld_right = 1'b1;
 			end
-			LD_COLOR: begin
-				writeEn = 1'b1;
+			// LD_COLOR: begin
+			// 	ld_color = 1'b1;
+			// 	writeEn = 1'b1;
+			// 	enable = 1'b1;
+			// end
+			// LD_COLOR_WAIT: begin
+			// 	// ld_color = 1'b1;
+			// end
+			PLOT: begin
 				ld_color = 1'b1;
+				writeEn = 1'b1;
 				enable = 1'b1;
 			end
 		endcase
@@ -300,11 +322,13 @@ module border_datapath(
 
 	reg [7:0] counter;
 	//counter
-	always @(posedge clk) begin
+	always @(posedge clk) 
+	begin
 		if (!resetn)
 			counter <= 8'd0;
 		else begin
-			if (enable) begin
+			if (enable) 
+			begin
 				if(ld_left || ld_right) 
 				begin
 					if (counter < 8'd100)
@@ -336,14 +360,13 @@ module border_datapath(
 
 endmodule
 
-
 module delay_counter(
-	input clk, reset, enable,
+	input clk, resetn, enable,
 	output delay_enable
 );
 	reg [19:0] count;
 	always @(posedge clk) begin
-		if (!reset)
+		if (!resetn)
 			count <= 20'd833334;
 		else if (enable) begin
 			if (count == 20'd0)
@@ -359,13 +382,13 @@ endmodule
 
 
 module one_sec_counter(
-    input clk60, reset, enable,
+    input clk60, resetn, enable,
     output one_sec
 );
     reg [5:0] count;
     always @(posedge clk60)
     begin
-        if (!reset)
+        if (!resetn)
             count <= 6'd60;
         else if (enable)
         begin
@@ -409,12 +432,12 @@ module x_counter(
 );
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
-			x_pos <= 8'b0000_0000;
+			x_pos <= 8'd80;
 		else begin
 			if (direction)
-				x_pos <= x_pos + 1'b1;
+				x_pos <= x_pos + 2'd1;
 			else
-				x_pos <= x_pos - 1'b1;
+				x_pos <= x_pos - 2'd1;
 		end
 
 	end
@@ -428,12 +451,12 @@ module y_counter(
 );
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
-			y_pos <= 7'b0111100;
+			y_pos <= 7'd60;
 		else begin
 			if (direction)
-				y_pos <= y_pos + 1'b1;
+				y_pos <= y_pos + 2'd2;
 			else
-				y_pos <= y_pos - 1'b1;
+				y_pos <= y_pos - 2'd2;
 		end
 	end
 
@@ -447,24 +470,21 @@ module r_h(
 );
 	always @(posedge clk) begin
 		if (!resetn)
-			direction <= 1;
+			direction <= 1'b1;
 		else begin
 			if (direction) begin
 				if (x + 1 > 8'd108)
 					direction <= 1'b0;
 				else
-					direction <= 1;
+					direction <= 1'b1;
 			end
-
 			else begin
-				if (x < 8'd49)
+				if (x - 1 < 8'd51)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
 			end
-
 		end
-
 	end
 
 
@@ -484,18 +504,15 @@ module r_v(
 				if (y + 1 > 7'd108)
 					direction <= 1'b0;
 				else
-					direction <= 1;
+					direction <= 1'b1;
 			end
-
 			else begin
-				if (y < 7'd108)
+				if (y - 1 < 7'd12)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
 			end
-
 		end
-
 	end
 
 endmodule
@@ -552,7 +569,7 @@ module draw(
 	// always @(posedge clk) begin
 	// 	if (!resetn)
 	// 		counter <= 4'b0000;
-	// 	else if (counter == 1111)
+	// 	else if (counter == 4'b1111)
 	// 			counter <= 4'b0000;
 	// 	else
 	// 			counter <= counter + 1'b1;
@@ -561,6 +578,11 @@ module draw(
 	// assign x_out = x + counter[1:0];
 	// assign y_out = y + counter[3:2];
 	// assign color_out = color;
+
+	// assign x_out = x;
+	// assign y_out = y;
+	// assign color_out = color;
+
 
 endmodule
 

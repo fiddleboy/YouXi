@@ -143,8 +143,8 @@ module control(
     reg [3:0] current_state, next_state;
     wire hold, delay_enable;
 
-    // delay_counter dc0(clk, reset, enable, delay_enable);        //count 1/60 sec
-    // one_sec_counter o0(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
+    delay_counter dc0(clk, reset, enable, delay_enable);        //count 1/60 sec
+    one_sec_counter o0(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
 
 
     localparam  START = 4'd0,
