@@ -642,11 +642,27 @@ module draw_paddle(
 	output [6:0] y_out,
 	output [2:0] color_out
 );
+	// wire delay_enable;
+	// delay_counter d_c(
+	// 	.clk(clk), 
+	// 	.resetn(resetn), 
+	// 	.enable(enable), 
+	// 	.delay_enable(delay_enable)
+	// 	);
+
+	// frame_counter f_c(
+	// 	.clk(clk), 
+	// 	.resetn(resetn), 
+	// 	.enable(delay_enable), 
+	// 	.color_in(3'b011), 
+	// 	.frame_enable(frame_enable), 
+	// 	.color_out(color_out)
+	// 	);
 
 	reg [7:0] x;
 
 	//reset or load
-	always @(posedge clk) begin
+	always @(posedge frame_enable) begin
 		if (!resetn) begin
 			x <= 8'd74;
 		end
