@@ -136,7 +136,6 @@ module game
 	assign LEDR[3] = ld_right;
 	assign LEDR[4] = enable;
 	assign LEDR[9] = hold;
-	
 
 
 	reg [7:0] x_temp;
@@ -424,7 +423,7 @@ module frame_counter(
 	end
 
 	assign frame_enable = (count == 4'b1111) ? 1 : 0;
-	assign color_out = (count == 4'b1111 || count == 4'b0000) ? 3'b000 : color_in;
+	assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
 	// assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
 endmodule
 
@@ -435,7 +434,7 @@ module x_counter(
 );
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
-			x_pos <= 8'd80;
+			x_pos <= 8'd60;
 		else begin
 			if (direction)
 				x_pos <= x_pos + 1'b1;
@@ -457,9 +456,9 @@ module y_counter(
 			y_pos <= 7'd60;
 		else begin
 			if (direction)
-				y_pos <= y_pos + 2'd1;
+				y_pos <= y_pos + 2'd2;
 			else
-				y_pos <= y_pos - 2'd1;
+				y_pos <= y_pos - 2'd2;
 		end
 	end
 
@@ -476,13 +475,13 @@ module r_h(
 			direction <= 1'b1;
 		else begin
 			if (direction) begin
-				if (x + 1 > 8'd108)
+				if (x + 3 > 8'd109)
 					direction <= 1'b0;
 				else
 					direction <= 1'b1;
 			end
 			else begin
-				if (x - 1 < 8'd51)
+				if (x - 3 < 8'd51)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
@@ -501,16 +500,16 @@ module r_v(
 );
 	always @(posedge clk) begin
 		if (!resetn)
-			direction <= 1;
+			direction <= 0;
 		else begin
 			if (direction) begin
-				if (y + 1 > 7'd108)
+				if (y + 3 > 7'd107)
 					direction <= 1'b0;
 				else
 					direction <= 1'b1;
 			end
 			else begin
-				if (y - 1 < 7'd12)
+				if (y - 3 < 7'd12)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
