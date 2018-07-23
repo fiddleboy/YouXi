@@ -1,6 +1,6 @@
 // Part 2 skeleton
 
-module part2
+module game
 	(
 		CLOCK_50,						//	On Board 50 MHz
 		// Your inputs and outputs here
@@ -72,6 +72,7 @@ module part2
 	// datapath d0(...);
 	datapath d0(
 		.clk(CLOCK_50),
+        .enable(writeEn),
 		.color_in(SW[9:7]),
 		.resetn(resetn),
 		.ld_x(ld_x),
@@ -171,7 +172,7 @@ endmodule
 
 
 module datapath(
-	input clk, resetn, ld_x, ld_y, ld_color,
+	input clk, enable, resetn, ld_x, ld_y, ld_color,
 	input [2:0] color_in,
 	input [6:0] coordinate, 
 	output [7:0] x_out, 
@@ -204,24 +205,46 @@ module datapath(
 //	assign x_out = x;
 //	assign y_out = y;
 //	assign color_out = color;
+    wire depaly_enable;
+    delay_counter dc(clk, resetn, 1'b1, delay_enable);
 
-	reg [3:0] counter;
+
+	reg [7:0] counter;
 	//counter
-	always @(posedge clk) begin
+	always @(posedge delay_enable) begin
 		if (!resetn)
-			counter <= 4'b0000;
-		else
-			if (counter == 1111)
-				counter <= 4'b0000;
-			else
-				counter <= counter + 1'b1;
-	end
+			counter <= 8'd0;
+		else begin
+            if((counter < 8'd140) && enable)
+			    counter <= counter + 1'b1;
+        end
+    end
 
 
-	assign x_out = x + counter[1:0];
-	assign y_out = y + counter[3:2];
+	assign x_out = x + counter[7:0];
+	assign y_out = y;
 	assign color_out = color;
 
 
 endmodule
 
+
+module delay_counter(
+	input clk, resetn, enable,
+	output delay_enable
+);
+	reg [19:0] count;
+	always @(posedge clk) begin
+		if (!resetn)
+			count <= 20'd25000000;
+		else if (enable) begin
+			if (count == 20'd0)
+				count <= 20'd25000000;
+			else
+				count <= count - 1'b1;
+		end
+	end
+		
+	assign delay_enable = (count == 20'd0) ? 1 : 0;
+	
+endmodule
