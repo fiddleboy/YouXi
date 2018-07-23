@@ -345,45 +345,6 @@ module datapath(
 endmodule
 
 
-module counter(clock,reset_n,enable,q);
-	input clock,reset_n,enable;
-	output reg [1:0] q;
-
-	always @(posedge clock)
-	begin
-		if(reset_n == 1'b0)
-			q <= 2'b00;
-		else if(enable == 1'b1)
-		begin
-		  if(q == 2'b11)
-			  q <= 2'b00;
-		  else
-			  q <= q + 1'b1;
-		end
-   end
-endmodule
-
-
-module rate_counter(clock,reset_n,enable,q);
-		input clock;
-		input reset_n;
-		input enable;
-		output reg [1:0] q;
-
-		always @(posedge clock)
-		begin
-			if(reset_n == 1'b0)
-				q <= 2'b11;
-			else if(enable ==1'b1)
-			begin
-			   if ( q == 2'b00 )
-					q <= 2'b11;
-				else
-					q <= q - 1'b1;
-			end
-		end
-endmodule
-
 module process(
 	input clk, enable, resetn, load_color, 
 	input [2:0] color_in,
@@ -423,4 +384,44 @@ module process(
 		.color_out(color_out)
 		);
 
+endmodule
+
+
+module counter(clock,reset_n,enable,q);
+	input clock,reset_n,enable;
+	output reg [1:0] q;
+
+	always @(posedge clock)
+	begin
+		if(reset_n == 1'b0)
+			q <= 2'b00;
+		else if(enable == 1'b1)
+		begin
+		  if(q == 2'b11)
+			  q <= 2'b00;
+		  else
+			  q <= q + 1'b1;
+		end
+   end
+endmodule
+
+
+module rate_counter(clock,reset_n,enable,q);
+		input clock;
+		input reset_n;
+		input enable;
+		output reg [1:0] q;
+
+		always @(posedge clock)
+		begin
+			if(reset_n == 1'b0)
+				q <= 2'b11;
+			else if(enable ==1'b1)
+			begin
+			   if ( q == 2'b00 )
+					q <= 2'b11;
+				else
+					q <= q - 1'b1;
+			end
+		end
 endmodule
