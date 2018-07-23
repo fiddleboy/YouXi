@@ -12,9 +12,10 @@ module game
 		VGA_SYNC_N,						//	VGA SYNC
 		VGA_R,   						//	VGA Red[9:0]
 		VGA_G,	 						//	VGA Green[9:0]
-		VGA_B   						//	VGA Blue[9:0]
+		VGA_B,   						//	VGA Blue[9:0]
+		LEDR
 	);
-
+	
 	input			CLOCK_50;				//	50 MHz
 	input   [9:0]   SW;
 	input   [3:0]   KEY;
@@ -29,7 +30,12 @@ module game
 	output	[9:0]	VGA_R;   				//	VGA Red[9:0]
 	output	[9:0]	VGA_G;	 				//	VGA Green[9:0]
 	output	[9:0]	VGA_B;   				//	VGA Blue[9:0]
-	
+
+
+	output [9:0] LEDR;		//test with leds
+
+
+
 	wire resetn;
 	assign resetn = KEY[0];
 	
@@ -37,7 +43,7 @@ module game
 	wire [2:0] colour;
 	wire [7:0] x;
 	wire [6:0] y;
-	wire writeEn, ld_x, ld_y, ld_color, enable, ld_white;
+	wire writeEn, ld_top, ld_bottom, ld_left, ld_right, ld_color;
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -62,39 +68,54 @@ module game
 		defparam VGA.MONOCHROME = "FALSE";
 		defparam VGA.BITS_PER_COLOUR_CHANNEL = 1;
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
-
-	process p0(
+			
+	// Put your code here. Your code should produce signals x,y,colour and writeEn/plot
+	// for the VGA controller, in addition to any other functionality your design may require.
+    
+    // Instansiate datapath
+	// datapath d0(...);
+	datapath d0(
 		.clk(CLOCK_50),
-		.enable(enable),
-		.resetn(resetn),
-		.load_color(ld_color),
-        .ld_white(ld_white),
+        .enable(writeEn),
 		.color_in(SW[9:7]),
+		.resetn(resetn),
+		.ld_top(ld_top),
+		.ld_bottom(ld_bottom),
+		.ld_left(ld_left),
+		.ld_right(ld_right),
 		.x_out(x),
 		.y_out(y),
 		.color_out(colour)
 	);
-
+    // Instansiate FSM control
+    // control c0(...);
+	wire hold;
     control c0(
 		.clk(CLOCK_50),
 		.resetn(resetn),
-		.go(!(KEY[1])),
-		.enable(enable),
-		.ld_color(ld_color),
+		.go(!KEY[1]),
+		.ld_top(ld_top),
+		.ld_bottom(ld_bottom),
+		.ld_left(ld_left),
+		.ld_right(ld_right),
 		.writeEn(writeEn),
-        .ld_white(ld_white)	
+		.hold(hold)
 	);
+	assign LEDR[9] = hold;
+	assign LEDR[0] = ld_top;
+	assign LEDR[1] = ld_bottom;
+	assign LEDR[2] = writeEn;
 endmodule
 
 
 
 module delay_counter(
-	input clk, resetn, enable,
-	output delay_enable;
+	input clk, reset, enable,
+	output delay_enable
 );
 	reg [19:0] count;
 	always @(posedge clk) begin
-		if (!resetn)
+		if (!reset)
 			count <= 20'd833334;
 		else if (enable) begin
 			if (count == 20'd0)
@@ -109,239 +130,132 @@ module delay_counter(
 endmodule
 
 
-module frame_counter(
-	input clk, resetn, enable, ld_white,
-	input [2:0] color_in,
-	output frame_enable,
-	output [2:0] color_out
+
+
+module one_sec_counter(
+    input clk60, reset, enable,
+    output one_sec
 );
-
-	reg [3:0] count;
-	always @(posedge clk) begin
-		if (!resetn)
-			count <= 4'b0000;
-		else if (enable == 1'b1) begin
-			if (count == 4'b1111)
-				count <= 4'b0000;
-			else
-				count <= count + 1'b1;
-		end
-	end
-
-	reg [2:0] signal0;
-	always @(*) begin
-		if(ld_white) begin
-			signal0 = 3'b111;
-		end
-		else begin
-			signal0 = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
-		end
-	end
-
-	reg signal;
-	always @(*) begin
-		if (ld_white == 1)
-			signal = clk;
-		else
-			signal = (count == 4'b1111) ? 1 : 0
-	end
-
-	assign frame_enable = signal;
-	assign color_out = signal0;
-
+    reg [5:0] count;
+    always @(posedge clk60)
+    begin
+        if (!reset)
+            count <= 6'd60;
+        else if (enable)
+        begin
+            if (count == 6'd0)
+                count <= 6'd60;
+            else
+                count <= count - 1'b1;
+        end
+    end
+    assign one_sec = (count == 6'd0) ? 1 : 0;
 endmodule
 
 
-module x_counter(
-	input resetn, enable, direction, ld_white,
-	output reg [7:0] x_pos
-);
 
 
-	wire
-
-	always@(negedge enable, negedge resetn) begin
-		if (!resetn)
-			x_pos <= 8'b0000_0000;
-		else begin
-			if (ld_white) begin
-				if (x_pos == 140) begin
-					x_pos <= x_pos;
-				end
-				else begin
-					x_pos <= x_pos + 1'b1;
-				end	
-			end
-			else begin
-				if (direction)
-					x_pos <= x_pos + 1'b1;
-				else
-					x_pos <= x_pos - 1'b1;
-			end
-		end
-
-	end
-	
-endmodule
-
-
-module y_counter(
-	input resetn, enable, direction, ld_white,
-	output reg [6:0] y_pos
-);
-	always@(negedge enable, negedge resetn) begin
-		if (!resetn)
-			y_pos <= 7'b0111100;
-		else begin
-			if (ld_white) begin
-				if(y_pos == 105)
-					y_pos <= y_pos;
-				else
-					y_pos <= y_pos + 1'b1;
-			end
-			else begin
-				if (direction)
-					y_pos <= y_pos + 1'b1;
-				else
-					y_pos <= y_pos - 1'b1;
-			end
-		end
-	end
-
-endmodule
-
-
-module r_h(
-	input clk, resetn,
-	input [7:0] x,
-	output reg direction
-);
-	always @(posedge clk) begin
-		if (!resetn)
-			direction <= 1;
-		else begin
-			if (direction) begin
-				if (x + 1 > 8'd140)
-					direction <= 1'b0;
-				else
-					direction <= 1;
-			end
-
-			else begin
-				if (x - 1 < 8'd15)
-					direction <= 1'b1;
-				else
-					direction <= 1'b0;
-			end
-
-		end
-
-	end
-endmodule
-
-
-module r_v(
-	input clk, resetn,
-	input [6:0] y,
-	output reg direction
-);
-	always @(posedge clk) begin
-		if (!resetn)
-			direction <= 1;
-		else begin
-			if (direction) begin
-				if (y + 1 > 7'd105)
-					direction <= 1'b0;
-				else
-					direction <= 1;
-			end
-
-			else begin
-				if (y == 7'd20)
-					direction <= 1'b1;
-				else
-					direction <= 1'b0;
-			end
-
-		end
-
-	end
-
-endmodule
 
 
 module control(
 	input clk, resetn, go,
-	output reg enable, ld_color, writeEn, ld_white, x_pos, y_pos
-    );
+	output reg ld_top, ld_bottom, ld_left, ld_right, writeEn,
+	output hold
+	);
 
-	reg [2:0] current_state, next_state;
+	wire enable, delay_enable; 
+	assign enable = writeEn;
+	delay_counter dc0(clk, resetn, enable, delay_enable);        //count 1/60 sec
+    one_sec_counter oc0(delay_enable, resetn, enable, hold);     // count 1sec, hold change every 1 sec
 
-	localparam  BORDER = 4'd0,
-				LOAD_COLOR = 4'd1,
-				LOAD_COLOR_WAIT = 4'd2,
-				PLOT = 4'd3;
+	
+	reg [3:0] current_state, next_state;
+	localparam  TOP = 4'd0,
+				TOP_WAIT = 4'd1,
+				BOTTOM = 4'd2,
+				BOTTOM_WAIT = 4'd3,
+				LEFT = 4'd4,
+				LEFT_WAIT = 4'd5,
+				RIGHT = 4'd6,
+				RIGHT_WAIT = 4'd7;
+	//reset
+	always @(posedge clk) begin
+		if (!resetn)
+			current_state <= TOP;
+		else
+			current_state <= next_state;
+	end
+
 	//state table
 	always @(*) 
 	begin: state_table
 		case (current_state)
-			BORDER: next_state = LOAD_COLOR;		
-			LOAD_COLOR: next_state = go ? LOAD_COLOR_WAIT : LOAD_COLOR;
-			LOAD_COLOR_WAIT: next_state = go ? LOAD_COLOR_WAIT : PLOT;
-			PLOT: next_state = PLOT;
-			default: next_state = BORDER;
+			TOP: next_state = hold ? TOP_WAIT : TOP;
+			TOP_WAIT: next_state = hold ? TOP_WAIT : BOTTOM;
+			BOTTOM: next_state = hold ? BOTTOM_WAIT : BOTTOM;
+			BOTTOM_WAIT: next_state = hold ? BOTTOM_WAIT : LEFT;
+			LEFT: next_state = hold ? LEFT_WAIT : LEFT;
+			LEFT_WAIT: next_state = hold ? LEFT_WAIT : RIGHT;
+			RIGHT: next_state = hold ? RIGHT_WAIT : RIGHT;
+			RIGHT_WAIT: next_state = RIGHT_WAIT;
+			default: next_state = TOP;
 		endcase
 	end
 
 	//output logic	aka output of datapath control signals
 	always @(*)
 	begin
-		ld_color = 1'b0;
-		writeEn = 1'b0;
-		enable = 1'b0;
-		ld_white = 1'b0; // modification.......................................................................
-		x_pos = 8'd0;
-		y_pos = 7'd0;
+		ld_top = 1'b0;
+		ld_bottom = 1'b0;
+		ld_left = 1'b0;
+		ld_right = 1'b0;						
+		writeEn = 0;
 
 		case (current_state)
-			BORDER: begin
-				ld_white = 1'b1;
-				ld_color = 1'b1;
+			TOP: begin 
+				ld_top = 1'b1;
+				ld_bottom = 1'b0;
 				writeEn = 1'b1;
-				enable = 1'b1;
-				x_pos = 8'd15;
-				y_pos = 7'd20;
-			end			
-			LOAD_COLOR: begin
-				// ld_color = 1'b1;
 			end
-			// LOAD_COLOR_WAIT: begin
-			// 	ld_color = 1'b1;
-			// end
-			PLOT: begin
-				ld_color = 1'b1;
-				writeEn = 1'b1;
-				enable = 1'b1;
+			TOP_WAIT: begin
+				ld_top = 1'b1;
+				ld_bottom = 1'b0;
+				writeEn = 1'b1;								
 			end
-
+			BOTTOM: begin
+				writeEn = 1;
+				ld_top = 1'b0;
+				ld_bottom = 1'b1;
+			end
+			BOTTOM_WAIT: begin
+				writeEn = 1;
+				ld_top = 1'b0;
+				ld_bottom = 1'b1;
+			end
+			LEFT: begin
+				writeEn = 1;
+				ld_left = 1'b1;
+			end
+			LEFT_WAIT: begin
+				writeEn = 1;
+				ld_left = 1'b1;
+			end
+			RIGHT: begin
+				writeEn = 1;
+				ld_right = 1'b1;
+			end
+			RIGHT_WAIT: begin
+				writeEn = 1;
+				ld_right = 1'b1;
+			end
 		endcase
-
-	end
-
-	always @(posedge clk) begin
-		if (!resetn)
-			current_state <= LOAD_COLOR;
-		else
-			current_state <= next_state;
 	end
 
 endmodule
 
 
 module datapath(
-	input clk, enable, resetn, ld_color, ld_white,
-	input [7:0] x_in, 
-	input [6:0] y_in,
+	input clk, enable, resetn, ld_top, ld_bottom, ld_left, ld_right,
 	input [2:0] color_in,
 	output [7:0] x_out, 
 	output [6:0] y_out, 
@@ -352,7 +266,7 @@ module datapath(
 	reg [6:0] y;
 	reg [2:0] color;
 
-	//reset or load
+
 	always @(posedge clk) begin
 		if (!resetn) begin
 			x <= 8'b0;
@@ -360,85 +274,61 @@ module datapath(
 			color <= 3'b0;
 		end
 		else begin
-			x <= x_in;
-			y <= y_in;
-			if (ld_color)
-				color <= color_in;
+			if (ld_top || ld_left) begin
+				y <= 7'd20;
+				x <= 8'd15;
+				color <= 3'b111;
+			end
+			else if (ld_bottom) begin
+				x <= 8'd15;
+				y <= 7'd105;
+				color <= 3'b111;
+			end
+			else if (ld_right) begin
+				x <= 8'd140;
+				y <= 7'd20;
+				color <= 3'b111;																								
+			end
 		end
 	end
 
-	reg [3:0] counter;
+
+	reg [7:0] counter;
+	//counter
 	always @(posedge clk) begin
 		if (!resetn)
-			counter <= 4'b0000;
-		else if (counter == 1111)
-				counter <= 4'b0000;
-		else
-				counter <= counter + 1'b1;
-	end
+			counter <= 8'd0;
+		else begin
+			if (enable) begin
+				if(ld_left || ld_right) 
+				begin
+					if (counter < 7'd85)
+						counter <= counter + 1'b1;	
+					else
+						counter <= 7'd0;															
+				end
+				else 
+					begin				
+						if(counter < 8'd125)
+							counter <= counter + 1'b1;
+						else
+							counter <= 8'd0;
+					end
+			end
+        end
+    end
 
-	reg [1:0] signal0;
-	always@(*) begin
-		if (ld_white)
-			signal0 = 0;
-		else
-			signal0 = counter[1:0];
+	
+	reg [7:0] x_temp;
+	reg [6:0] y_temp;
+	always @(*) begin
+		x_temp = (ld_top || ld_bottom) ? (x + counter[7:0]) : x;
+		y_temp = (ld_left || ld_right) ? (y + counter[7:0]) : y;
 	end
-
-	reg [1:0] signal;
-	always@(*) begin
-		if (ld_white)
-			signal = 0;
-		else
-			signal = counter[3:2];
-	end
-
-	assign x_out = x + signal0;
-	assign y_out = y + signal;
+	assign x_out = x_temp;
+	assign y_out = y_temp;
 	assign color_out = color;
 
 endmodule
 
 
-module process(
-	input clk, enable, resetn, load_color, ld_white,
-	input [2:0] color_in,
-	output [7:0] x_out,
-	output [6:0] y_out,
-	output [2:0] color_out
-);
-
-	wire [7:0] x_pos;
-	wire [6:0] y_pos;
-	wire [19:0] count0;
-	wire [3:0] count1;
-	wire x_direction, y_direction;
-	wire [2:0] color;
-	wire delay_enable;
-	wire frame_enable;
-	wire ld_white;
-
-	delay_counter d_c(.clk(clk), .resetn(resetn), .enable(enable), .delay_enable(delay_enable));
-	frame_counter f_c(.ld_white(ld_white), .clk(clk), .resetn(resetn), .enable(delay_enable), .color_in(color_in), .frame_enable(frame_enable), .color_out(color));
-	
-	x_counter x_c(.ld_white(ld_white), .resetn(resetn), .enable(frame_enable), .x_pos(x_pos), .direction(x_direction));
-	y_counter y_c(.ld_white(ld_white), .resetn(resetn), .enable(frame_enable), .y_pos(y_pos), .direction(y_direction));
-
-	r_h register_h(.clk(clk), .resetn(resetn), .x(x_pos), .direction(x_direction));
-	r_v register_v(.clk(clk), .resetn(resetn), .y(y_pos), .direction(y_direction));
-
-	datapath data(
-		.clk(clk),
-		.enable(enable),
-		.resetn(resetn), 
-		.ld_color(load_color),
-		.ld_white(ld_white),
-		.x_in(x_pos),
-		.y_in(y_pos),
-		.color_in(color),
-		.x_out(x_out),
-		.y_out(y_out),
-		.color_out(color_out)
-		);
-
-endmodule

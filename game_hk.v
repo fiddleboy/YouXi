@@ -144,7 +144,7 @@ module control(
     wire hold, delay_enable;
 
     // delay_counter dc0(clk, reset, enable, delay_enable);        //count 1/60 sec
-    // one_sec_counter(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
+    // one_sec_counter o0(delay_enable, reset, enable, hold);         // count 1sec, hold change every 1 sec
 
 
     localparam  START = 4'd0,
@@ -152,6 +152,14 @@ module control(
                 BORDER_TOP = 4'd2,
                 BORDER_TOP_WAIT = 4'd3,
                 BORDER_BOTTOM = 4'd4;
+
+    //reset
+	always @(posedge clk) begin
+		if (!resetn)
+			current_state <= START;
+		else
+			current_state <= next_state;
+	end
 
     always @(*)
     begin: state_table

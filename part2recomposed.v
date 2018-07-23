@@ -14,9 +14,10 @@ module game
 		VGA_SYNC_N,						//	VGA SYNC
 		VGA_R,   						//	VGA Red[9:0]
 		VGA_G,	 						//	VGA Green[9:0]
-		VGA_B   						//	VGA Blue[9:0]
+		VGA_B,   						//	VGA Blue[9:0]
+		LEDR
 	);
-
+	
 	input			CLOCK_50;				//	50 MHz
 	input   [9:0]   SW;
 	input   [3:0]   KEY;
@@ -31,7 +32,12 @@ module game
 	output	[9:0]	VGA_R;   				//	VGA Red[9:0]
 	output	[9:0]	VGA_G;	 				//	VGA Green[9:0]
 	output	[9:0]	VGA_B;   				//	VGA Blue[9:0]
-	
+
+
+	output [9:0] LEDR;		//test with leds
+
+
+
 	wire resetn;
 	assign resetn = KEY[0];
 	
@@ -39,7 +45,7 @@ module game
 	wire [2:0] colour;
 	wire [7:0] x;
 	wire [6:0] y;
-	wire writeEn, ld_x, ld_y, ld_color;
+	wire writeEn, ld_top, ld_bottom, ld_left, ld_right, ld_color;
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -75,52 +81,109 @@ module game
         .enable(writeEn),
 		.color_in(SW[9:7]),
 		.resetn(resetn),
-		.ld_x(ld_x),
-		.ld_y(ld_y),
-		.ld_color(ld_color),
-		.coordinate(SW[6:0]),
+		.ld_top(ld_top),
+		.ld_bottom(ld_bottom),
+		.ld_left(ld_left),
+		.ld_right(ld_right),
 		.x_out(x),
 		.y_out(y),
 		.color_out(colour)
 	);
     // Instansiate FSM control
     // control c0(...);
-
+	wire hold;
     control c0(
 		.clk(CLOCK_50),
 		.resetn(resetn),
-		.load(!(KEY[3])),
-		.go(!(KEY[1])),
-		.ld_x(ld_x),
-		.ld_y(ld_y),
-		.ld_color(ld_color),
-		.writeEn(writeEn)	
+		.go(!KEY[1]),
+		.ld_top(ld_top),
+		.ld_bottom(ld_bottom),
+		.ld_left(ld_left),
+		.ld_right(ld_right),
+		.writeEn(writeEn),
+		.hold(hold)
 	);
+	assign LEDR[9] = hold;
+	assign LEDR[0] = ld_top;
+	assign LEDR[1] = ld_bottom;
+	assign LEDR[2] = writeEn;
+endmodule
+
+
+
+module delay_counter(
+	input clk, reset, enable,
+	output delay_enable
+);
+	reg [19:0] count;
+	always @(posedge clk) begin
+		if (!reset)
+			count <= 20'd833334;
+		else if (enable) begin
+			if (count == 20'd0)
+				count <= 20'd833334;
+			else
+				count <= count - 1'b1;
+		end
+	end
+		
+	assign delay_enable = (count == 20'd0) ? 1 : 0;
+	
+endmodule
+
+
+
+
+module one_sec_counter(
+    input clk60, reset, enable,
+    output one_sec
+);
+    reg [5:0] count;
+    always @(posedge clk60)
+    begin
+        if (!reset)
+            count <= 6'd60;
+        else if (enable)
+        begin
+            if (count == 6'd0)
+                count <= 6'd60;
+            else
+                count <= count - 1'b1;
+        end
+    end
+    assign one_sec = (count == 6'd0) ? 1 : 0;
 endmodule
 
 
 
 
 
+
 module control(
-	input clk, resetn, load, go,
-	output reg ld_x, ld_y, ld_color, writeEn);
+	input clk, resetn, go,
+	output reg ld_top, ld_bottom, ld_left, ld_right, writeEn,
+	output hold
+	);
 
-
-	reg [2:0] current_state, next_state;
+	wire enable, delay_enable; 
+	assign enable = writeEn;
+	delay_counter dc0(clk, resetn, enable, delay_enable);        //count 1/60 sec
+    one_sec_counter oc0(delay_enable, resetn, enable, hold);     // count 1sec, hold change every 1 sec
 
 	
-	localparam  LOAD_X = 3'b000,
-				LOAD_X_WAIT = 3'b001,
-				LOAD_Y_C = 3'b010,
-				LOAD_Y_C_WAIT = 3'b011,
-				PLOT = 3'b100;
-
-
+	reg [3:0] current_state, next_state;
+	localparam  TOP = 4'd0,
+				TOP_WAIT = 4'd1,
+				BOTTOM = 4'd2,
+				BOTTOM_WAIT = 4'd3,
+				LEFT = 4'd4,
+				LEFT_WAIT = 4'd5,
+				RIGHT = 4'd6,
+				RIGHT_WAIT = 4'd7;
 	//reset
 	always @(posedge clk) begin
 		if (!resetn)
-			current_state <= LOAD_X;
+			current_state <= TOP;
 		else
 			current_state <= next_state;
 	end
@@ -129,52 +192,73 @@ module control(
 	always @(*) 
 	begin: state_table
 		case (current_state)
-			LOAD_X: next_state = load ? LOAD_X_WAIT : LOAD_X;
-			LOAD_X_WAIT: next_state = load ? LOAD_X_WAIT : LOAD_Y_C;
-			LOAD_Y_C: next_state = go ? LOAD_Y_C_WAIT : LOAD_Y_C;
-			LOAD_Y_C_WAIT: next_state = go ? LOAD_Y_C_WAIT : PLOT;
-			PLOT: next_state = load ? LOAD_X : PLOT;
-			default: next_state = LOAD_X;
+			TOP: next_state = hold ? TOP_WAIT : TOP;
+			TOP_WAIT: next_state = hold ? TOP_WAIT : BOTTOM;
+			BOTTOM: next_state = hold ? BOTTOM_WAIT : BOTTOM;
+			BOTTOM_WAIT: next_state = hold ? BOTTOM_WAIT : LEFT;
+			LEFT: next_state = hold ? LEFT_WAIT : LEFT;
+			LEFT_WAIT: next_state = hold ? LEFT_WAIT : RIGHT;
+			RIGHT: next_state = hold ? RIGHT_WAIT : RIGHT;
+			RIGHT_WAIT: next_state = RIGHT_WAIT;
+			default: next_state = TOP;
 		endcase
 	end
-
 
 	//output logic	aka output of datapath control signals
 	always @(*)
 	begin
-		ld_x = 1'b0;
-		ld_y = 1'b0;
-		ld_color = 1'b0;
+		ld_top = 1'b0;
+		ld_bottom = 1'b0;
+		ld_left = 1'b0;
+		ld_right = 1'b0;						
 		writeEn = 0;
 
 		case (current_state)
-			LOAD_X: ld_x = 1;
-			LOAD_X_WAIT: ld_x = 1;
-			LOAD_Y_C: begin
-				ld_x = 0;
-				ld_y = 1;
-				ld_color = 1;
+			TOP: begin 
+				ld_top = 1'b1;
+				ld_bottom = 1'b0;
+				writeEn = 1'b1;
 			end
-			LOAD_Y_C_WAIT: begin
-				ld_x = 0;
-				ld_y = 1;
-				ld_color = 1;
+			TOP_WAIT: begin
+				ld_top = 1'b1;
+				ld_bottom = 1'b0;
+				writeEn = 1'b1;								
 			end
-			PLOT: writeEn = 1;
-
+			BOTTOM: begin
+				writeEn = 1;
+				ld_top = 1'b0;
+				ld_bottom = 1'b1;
+			end
+			BOTTOM_WAIT: begin
+				writeEn = 1;
+				ld_top = 1'b0;
+				ld_bottom = 1'b1;
+			end
+			LEFT: begin
+				writeEn = 1;
+				ld_left = 1'b1;
+			end
+			LEFT_WAIT: begin
+				writeEn = 1;
+				ld_left = 1'b1;
+			end
+			RIGHT: begin
+				writeEn = 1;
+				ld_right = 1'b1;
+			end
+			RIGHT_WAIT: begin
+				writeEn = 1;
+				ld_right = 1'b1;
+			end
 		endcase
-
 	end
 
 endmodule
 
 
-
-
 module datapath(
-	input clk, enable, resetn, ld_x, ld_y, ld_color,
+	input clk, enable, resetn, ld_top, ld_bottom, ld_left, ld_right,
 	input [2:0] color_in,
-	input [6:0] coordinate, 
 	output [7:0] x_out, 
 	output [6:0] y_out, 
 	output [2:0] color_out
@@ -185,7 +269,6 @@ module datapath(
 	reg [2:0] color;
 
 
-	//reset or load
 	always @(posedge clk) begin
 		if (!resetn) begin
 			x <= 8'b0;
@@ -193,58 +276,61 @@ module datapath(
 			color <= 3'b0;
 		end
 		else begin
-			if (ld_x)
-				x <= {1'b0, coordinate};
-			if (ld_y)
-				y <= coordinate;
-			if (ld_color)
-				color <= color_in;
+			if (ld_top || ld_left) begin
+				y <= 7'd20;
+				x <= 8'd15;
+				color <= 3'b111;
+			end
+			else if (ld_bottom) begin
+				x <= 8'd15;
+				y <= 7'd105;
+				color <= 3'b111;
+			end
+			else if (ld_right) begin
+				x <= 8'd140;
+				y <= 7'd20;
+				color <= 3'b111;																								
+			end
 		end
 	end
-
-//	assign x_out = x;
-//	assign y_out = y;
-//	assign color_out = color;
-    wire depaly_enable;
-    delay_counter dc(clk, resetn, 1'b1, delay_enable);
 
 
 	reg [7:0] counter;
 	//counter
-	always @(posedge delay_enable) begin
+	always @(posedge clk) begin
 		if (!resetn)
 			counter <= 8'd0;
 		else begin
-            if((counter < 8'd140) && enable)
-			    counter <= counter + 1'b1;
+			if (enable) begin
+				if(ld_left || ld_right) 
+				begin
+					if (counter < 7'd85)
+						counter <= counter + 1'b1;	
+					else
+						counter <= 7'd0;															
+				end
+				else 
+					begin				
+						if(counter < 8'd125)
+							counter <= counter + 1'b1;
+						else
+							counter <= 8'd0;
+					end
+			end
         end
     end
 
-
-	assign x_out = x + counter[7:0];
-	assign y_out = y;
+	
+	reg [7:0] x_temp;
+	reg [6:0] y_temp;
+	always @(*) begin
+		x_temp = (ld_top || ld_bottom) ? (x + counter[7:0]) : x;
+		y_temp = (ld_left || ld_right) ? (y + counter[7:0]) : y;
+	end
+	assign x_out = x_temp;
+	assign y_out = y_temp;
 	assign color_out = color;
 
-
 endmodule
 
 
-module delay_counter(
-	input clk, resetn, enable,
-	output delay_enable
-);
-	reg [19:0] count;
-	always @(posedge clk) begin
-		if (!resetn)
-			count <= 20'd25000000;
-		else if (enable) begin
-			if (count == 20'd0)
-				count <= 20'd25000000;
-			else
-				count <= count - 1'b1;
-		end
-	end
-		
-	assign delay_enable = (count == 20'd0) ? 1 : 0;
-	
-endmodule
