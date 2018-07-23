@@ -134,7 +134,9 @@ module game
 	assign LEDR[1] = ld_bottom;
 	assign LEDR[2] = ld_left;
 	assign LEDR[3] = ld_right;
+	assign LEDR[4] = enable;
 	assign LEDR[9] = hold;
+	
 
 
 	reg [7:0] x_temp;
