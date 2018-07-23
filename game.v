@@ -422,7 +422,7 @@ module frame_counter(
 	end
 
 	assign frame_enable = (count == 4'b1111) ? 1 : 0;
-	assign color_out = (count == 4'b1111 || count == 4'b0000) ? 3'b000 : color_in;
+	assign color_out = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
 	// assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
 endmodule
 
@@ -455,9 +455,9 @@ module y_counter(
 			y_pos <= 7'd60;
 		else begin
 			if (direction)
-				y_pos <= y_pos + 2'd2;
+				y_pos <= y_pos + 2'd1;
 			else
-				y_pos <= y_pos - 2'd2;
+				y_pos <= y_pos - 2'd1;
 		end
 	end
 
