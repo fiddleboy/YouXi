@@ -423,7 +423,7 @@ module frame_counter(
 	end
 
 	assign frame_enable = (count == 4'b1111) ? 1 : 0;
-	assign color_out = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
+	assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
 	// assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
 endmodule
 
