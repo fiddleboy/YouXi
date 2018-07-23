@@ -1,4 +1,4 @@
-// `include "hex_decoder.v"
+
 
 module game
 	(
@@ -79,11 +79,7 @@ module game
 		defparam VGA.BITS_PER_COLOUR_CHANNEL = 1;
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
 			
-	// Put your code here. Your code should produce signals x,y,colour and writeEn/plot
-	// for the VGA controller, in addition to any other functionality your design may require.
-    
-    // Instansiate datapath
-	// datapath d0(...);
+	
 
 	wire [7:0] x_p;
 	wire [6:0] y_p;
@@ -114,8 +110,8 @@ module game
 		.y_out(y_b),
 		.color_out(color_b)
 	);
-    // Instansiate FSM control
-    // control c0(...);
+   
+   
 	wire hold;
     control c0(
 		.clk(CLOCK_50),
@@ -168,8 +164,6 @@ module control(
 	);
 
 	wire delay_enable;
-	// delay_counter dc0(clk, resetn, enable, delay_enable);        //count 1/60 sec
-    // one_sec_counter oc0(delay_enable, resetn, enable, hold);     // count 1sec, hold change every 1 sec
 	delay_counter dc0(.clk(clk), .resetn(resetn), .enable(writeEn), .delay_enable(delay_enable));        //count 1/60 sec
     one_sec_counter o0(.clk60(delay_enable), .resetn(resetn), .enable(writeEn), .one_sec(hold));         // count 1sec, hold change every 1 sec
 	
@@ -424,7 +418,7 @@ module frame_counter(
 
 	assign frame_enable = (count == 4'b1111) ? 1 : 0;
 	assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
-	// assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
+
 endmodule
 
 
@@ -550,7 +544,7 @@ module draw(
 	end
 
 
-
+	//2x2 pixel block
 	reg [1:0] counter;
 	
 	always @(posedge clk) begin
@@ -565,6 +559,9 @@ module draw(
 	assign x_out = x + counter[0];
 	assign y_out = y + counter[1];
 	assign color_out = color;
+
+
+	// 4x4 pixel block
 
 	// reg [3:0] counter;
 	
@@ -581,6 +578,8 @@ module draw(
 	// assign y_out = y + counter[3:2];
 	// assign color_out = color;
 
+	
+	// 1x1 pixel block
 	// assign x_out = x;
 	// assign y_out = y;
 	// assign color_out = color;
