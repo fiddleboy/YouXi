@@ -82,11 +82,11 @@ module part3(
 		.left(left),
 		.right(right),
 		.x_out(x),
-		.y_out(y),
+		.y_out(y),		
 		.color_out(colour)
 	);
     wire hold;
-    control c0(
+    control_paddle c1(
 		.clk(CLOCK_50),
 		.resetn(resetn),
 		.go(!(KEY[1])),
@@ -101,18 +101,6 @@ module part3(
     // assign LEDR[2] = writeEn;
 
 endmodule
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 module control_paddle(
@@ -210,7 +198,7 @@ module datapath(
 		.left(left),
 		.right(right),
         .x_out(x_pos),
-        .y_out(y_pos)		
+        .y_out(y_pos)				        
     );
 
     draw data(
@@ -247,7 +235,7 @@ module draw(
 	end
 
 	assign x_out = x_in + count[3:0];
-	assign y_out = y_in
+	assign y_out = y_in;
 
 endmodule
 
@@ -255,7 +243,7 @@ endmodule
 module xy_counter(
     input clk, resetn, enable_move, left, right,
     output reg [7:0] x_out,
-    output reg [6:0] y_out
+    output [6:0] y_out
 );
     // x_counter    
     always@(posedge enable_move, negedge resetn) begin
@@ -264,20 +252,42 @@ module xy_counter(
             else begin
                 if (right) begin
                     if (x_out + 1 > 8'd156)
-                        x_out <= x_out                    
+                        x_out <= x_out;               
                     else
                         x_out <= x_out + 1'b1;
                 end
                 else if (left) begin
-				
-				end
-                    x_out <= x_out - 1'b1;
-                else
-                    x_out <= x_out
-            end
-        end
+					if (x_out <= 8'd2)
+						 x_out <= x_out;
+					else
+                    	x_out <= x_out - 1'b1;
+            	end
+			end
+    end
     assign y_out = 7'd60;
 
+endmodule
+
+
+
+module delay_counter(
+	input clk, resetn, enable,
+	output delay_enable
+);
+	reg [19:0] count;
+	always @(posedge clk) begin
+		if (!resetn)
+			count <= 20'd300000;
+		else if (enable) begin
+			if (count == 20'd0)
+				count <= 20'd300000;
+			else
+				count <= count - 1'b1;
+		end
+	end
+		
+	assign delay_enable = (count == 20'd0) ? 1 : 0;
+	
 endmodule
 
 
