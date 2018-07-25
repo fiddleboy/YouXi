@@ -74,7 +74,7 @@ module part3(
 
     wire writeEn, ld_x, ld_y, ld_color, enable_color, enable_move;
 
-	datapath p0(
+	datapath_paddle p0(
 		.clk(CLOCK_50),
 		.resetn(resetn),
         .enable_color(enable_color),
@@ -105,7 +105,7 @@ endmodule
 
 module control_paddle(
     input clk, resetn, go,
-	output reg enable_color, enable_move, writeEn
+	output reg enable_color, enable_move, writeEn, done
     );
 
     wire hold, hold1;
@@ -118,7 +118,7 @@ module control_paddle(
 	reg [2:0] current_state, next_state;
 
     always @(posedge clk) begin
-		if (!resetn)
+		if (!resetn | !go)
 			current_state <= ERASE;
 		else
 			current_state <= next_state;
@@ -129,7 +129,8 @@ module control_paddle(
 				MOVE = 3'd2,
                 MOVE_WAIT = 3'd3,                 
 				DRAW = 3'd4,
-                DRAW_WAIT = 3'd5;                
+                DRAW_WAIT = 3'd5,
+				DONE = 3'd6;                
 	//state table
 	always @(*) 
 	begin: state_table
@@ -140,6 +141,7 @@ module control_paddle(
             MOVE_WAIT: next_state = hold ? MOVE_WAIT : DRAW;                            
 			DRAW: next_state = time_up_1_8 ? DRAW : DRAW_WAIT;
             DRAW_WAIT: next_state = time_up_1_8 ? ERASE : DRAW_WAIT;
+			DONE: next_state = start_over ? ERASE : DONE;
 			default: next_state = ERASE;
 		endcase
 	end
@@ -150,6 +152,7 @@ module control_paddle(
 		enable_color = 1'b0;
         enable_move = 1'b0;
         writeEn = 1'b0;
+		done = 1'b0;
 
 		case (current_state)
 			
@@ -175,6 +178,9 @@ module control_paddle(
                 enable_move = 1'b0;
                 writeEn = 1'b1; 
             end
+			DONE: begin
+				done = 1'b1;
+			end
 		endcase
 	end
 
@@ -182,7 +188,7 @@ endmodule
 
 
 
-module datapath(
+module datapath_paddle(
     input clk, resetn, enable_color, enable_move, left, right,
     output [7:0] x_out,
 	output [6:0] y_out,
@@ -191,7 +197,7 @@ module datapath(
 
     wire [7:0] x_pos;
     wire [6:0] y_pos;
-    xy_counter movement(
+    xy_counter_paddle movement(
         .clk(clk),
         .resetn(resetn),
 		.enable_move(enable_move),
@@ -201,7 +207,7 @@ module datapath(
         .y_out(y_pos)				        
     );
 
-    draw data(
+    paddle_draw data(
         .clk(clk),
         .resetn(resetn),
         .x_in(x_pos),
@@ -215,7 +221,7 @@ module datapath(
 endmodule
 
 
-module draw(
+module paddle_draw(
 	input clk, resetn,
 	input [7:0] x_in, 
 	input [6:0] y_in,
@@ -240,7 +246,7 @@ module draw(
 endmodule
 
 
-module xy_counter(
+module xy_counter_paddle(
     input clk, resetn, enable_move, left, right,
     output reg [7:0] x_out,
     output [6:0] y_out
