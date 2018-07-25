@@ -1,5 +1,3 @@
-// `include "hex_decoder.v"
-
 module game
 	(
 		CLOCK_50,						//	On Board 50 MHz

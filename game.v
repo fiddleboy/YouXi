@@ -52,7 +52,7 @@ module game
 	wire [7:0] x;
 	wire [6:0] y;
 	wire writeEn, ld_top, ld_bottom, ld_left, ld_right, ld_color, enable;
-	wire move_left0, move_right0；
+	reg move_left0, move_right0;
 
 
 	// assign move_left0 = (SW[1] == 1'b1 && SW[0] == 1'b0) ? 1b'1 : 1'b0;
@@ -105,12 +105,22 @@ module game
 	wire [7:0] x_p;
 	wire [6:0] y_p;
 	wire [2:0] color_p;	
+	wire move_left_wire, move_right_wire;
+	assign move_left_wire = move_left0;
+	assign move_right_wire = move_right0;
+	// assign LEDR[0] = SW[0];
+	// assign LEDR[1] = SW[1];
+	// assign LEDR[2] = move_right_wire;
+	// assign LEDR[3] = move_left_wire;
 	process p0(
 		.clk(CLOCK_50), 
 		.enable(enable), 
 		.resetn(resetn), 
-		.ld_color(ld_color), 
+		.ld_color(ld_color),
+		.move_left0(move_left_wire),
+		.move_right0(move_right_wire),
 		.color_in(SW[9:7]),
+		
 		.x_out(x_p),
 		.y_out(y_p),
 		.color_out(color_p)
@@ -122,11 +132,12 @@ module game
 	border_datapath d0(
 		.clk(CLOCK_50),
         .enable(writeEn),
-		.resetn(resetn),
+		.resetn(resetn),		
 		.ld_top(ld_top),
 		.ld_bottom(ld_bottom),
 		.ld_left(ld_left),
 		.ld_right(ld_right),
+
 		.x_out(x_b),
 		.y_out(y_b),
 		.color_out(color_b)
@@ -135,8 +146,8 @@ module game
 	wire hold;
     control c0(
 		.clk(CLOCK_50),
-		.resetn(resetn),
-		.go(!KEY[1]),
+		.resetn(resetn),		
+		.go(!KEY[1]),		
 		.ld_top(ld_top),
 		.ld_bottom(ld_bottom),
 		.ld_left(ld_left),
@@ -197,8 +208,6 @@ module control(
 				LEFT_WAIT = 4'd5,
 				RIGHT = 4'd6,
 				RIGHT_WAIT = 4'd7,
-				// LD_COLOR = 4'd8,       // part3 starts...  
-				// LD_COLOR_WAIT = 4'd9,
 				PLOT = 4'd8;
 
 	//reset
@@ -221,8 +230,6 @@ module control(
 			LEFT_WAIT: next_state = hold ? LEFT_WAIT : RIGHT;
 			RIGHT: next_state = go ? RIGHT_WAIT : RIGHT;
 			RIGHT_WAIT: next_state = go ? RIGHT_WAIT : PLOT;
-			// LD_COLOR: next_state = PLOT;
-			// LD_COLOR_WAIT: next_state = go ? LD_COLOR_WAIT : PLOT;
 			PLOT: next_state = PLOT;
 			default: next_state = TOP;
 		endcase
@@ -363,24 +370,6 @@ module border_datapath(
 						else
 							counter <= 8'd0;
 					end
-
-					// begin
-					// 	if (ld_top)
-					// 	begin				
-					// 		if(counter < 8'd60)
-					// 			counter <= counter + 1'b1;
-					// 		else
-					// 			counter <= 8'd0;
-					// 	end
-
-					// 	else if (ld_bottom)
-					// 	begin
-					// 		if(counter < 8'd20)
-					// 			counter <= counter + 1'b1;
-					// 		else
-					// 			counter <= 8'd0;
-					// 	end
-					// end
 			end
         end
     end
@@ -452,7 +441,7 @@ module frame_counter(
 	always @(posedge clk) begin
 		if (!resetn)
 			count <= 4'b0000;
-		else if (enable == 1'b1) begin
+		else begin
 			if (count == 4'b1111)
 				count <= 4'b0000;
 			else
@@ -461,8 +450,7 @@ module frame_counter(
 	end
 
 	assign frame_enable = (count == 4'b1111) ? 1 : 0;
-	assign color_out = (count == 4'b1111) ? 3'b000 : color_in;
-
+	assign color_out = (count == 4'b1111 || count == 4'b1110) ? 3'b000 : color_in;
 endmodule
 
 
@@ -473,7 +461,7 @@ module x_counter(
 	always@(negedge enable, negedge resetn) begin
 		if (!resetn)
 			x_pos <= 8'd60;
-		else begin
+		else begin	
 			if (direction)
 				x_pos <= x_pos + 1'b1;
 			else
@@ -494,9 +482,9 @@ module y_counter(
 			y_pos <= 7'd60;
 		else begin
 			if (direction)
-				y_pos <= y_pos + 2'd2;
+				y_pos <= y_pos + 2'd1;
 			else
-				y_pos <= y_pos - 2'd2;
+				y_pos <= y_pos - 2'd1;
 		end
 	end
 
@@ -532,16 +520,16 @@ endmodule
 
 
 module r_v(
-	input clk, resetn, x, x_paddle
+	input clk, resetn, x, x_paddle,
 	input [6:0] y,
 	output reg direction
 );
 	always @(posedge clk) begin
 		if (!resetn)
-			direction <= 0;
+			direction <= 1'b0;
 		else begin
 			if (direction) begin            // down direction
-				if (y + 3 > 7'd107)
+				if (y + 3 > 7'd100)
 					begin
 						if (x+1>x_paddle && x-1<x_paddle+20)				
 							direction <= 1'b0;
@@ -552,7 +540,7 @@ module r_v(
 					direction <= 1'b1;
 			end
 			else begin                      // up direction
-				if (y - 3 < 7'd12)
+				if (y - 3 < 7'd15)
 					direction <= 1'b1;
 				else
 					direction <= 1'b0;
@@ -636,45 +624,28 @@ endmodule
 
 
 module draw_paddle(
-	input clk, enable, resetn, 
-	input move_left, move_right,
+	input clk, enable, resetn, delay_enable, frame_enable,
+	input move_left, move_right, color_in,
 	output [7:0] x_out,
 	output [6:0] y_out,
 	output [2:0] color_out
 );
-	// wire delay_enable;
-	// delay_counter d_c(
-	// 	.clk(clk), 
-	// 	.resetn(resetn), 
-	// 	.enable(enable), 
-	// 	.delay_enable(delay_enable)
-	// 	);
-
-	// frame_counter f_c(
-	// 	.clk(clk), 
-	// 	.resetn(resetn), 
-	// 	.enable(delay_enable), 
-	// 	.color_in(3'b011), 
-	// 	.frame_enable(frame_enable), 
-	// 	.color_out(color_out)
-	// 	);
 
 	reg [7:0] x;
 
 	//reset or load
-	always @(posedge frame_enable) begin
+	always @(negedge frame_enable) begin
 		if (!resetn) begin
 			x <= 8'd74;
 		end
-		else begin
-			if (move_left)
-				x <= x - 1;
-			else if (move_right)
-				x <= x + 1;
-			else
-				x <= x;													
-		end
+		else if (move_left)
+			x <= x - 1;
+		else if (move_right)
+			x <= x + 1;
+		else
+			x <= x;													
 	end
+	
 
 	reg [3:0] counter;
 	always @(posedge clk) 
@@ -691,8 +662,8 @@ module draw_paddle(
 	end
 	assign x_out = x + counter[3:0];
 	assign y_out = 7'd110;
-	assign color_out = 3'b011;
-
+	// assign color_out = (color_in == 3'b000) ? 3'b000 : 3'b011;
+	assign color_out = (frame_enable == 1) ? 3'b000 : 3'b011;
 endmodule
 
 
@@ -724,7 +695,7 @@ module process(
 		);
 
 	frame_counter f_c(
-		.clk(clk), 
+		.clk(delay_enable), 
 		.resetn(resetn), 
 		.enable(delay_enable), 
 		.color_in(color_in), 
@@ -766,9 +737,12 @@ module process(
 	draw_paddle data1(
 		.clk(clk),
 		.enable(enable),
+		.delay_enable(delay_enable),
+		.frame_enable(frame_enable),
 		.resetn(resetn),
 		.move_left(move_left0),
 		.move_right(move_right0),
+		.color_in(color),
 		.x_out(x_paddle),
 		.y_out(y_paddle),
 		.color_out(color_paddle)
@@ -789,9 +763,19 @@ module process(
 
 	// wire out_indicator;
 	// assign out_indicator = clk;
-	assign x_out = clk ? x_ball : x_paddle;
-	assign y_out = clk ? y_ball : y_paddle;
-	assign color_out = clk ? color_ball : color_paddle;
+
+	
+	// assign x_out = x_ball;
+	// assign y_out = y_ball;
+	// assign color_out = color_ball;
+
+	// assign x_out = delay_enable ? x_ball : x_paddle;
+	// assign y_out = delay_enable ? y_ball : y_paddle;
+	// assign color_out = delay_enable ? color_ball : color_paddle;
+
+	assign x_out = x_paddle;
+	assign y_out = y_paddle;
+	assign color_out = color_paddle;
 
 
 endmodule
