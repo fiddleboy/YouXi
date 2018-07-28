@@ -1,9 +1,7 @@
-// ball
 module control_ball(
 	input clk, resetn, go, draw_done,
 	output reg enable_color, enable_move, writeEn, draw,
     output reg done
-    // output hold, hold1
     );
     
     wire hold, hold1;
@@ -38,7 +36,6 @@ module control_ball(
 				MOVE = 4'd2,                 
 				DRAW = 4'd3,
                 DONE1 = 4'd4;
-	//state table
     
     always @(*)
     begin: state_table
@@ -68,17 +65,14 @@ module control_ball(
 			ERASE: begin
                 writeEn = 1'b1;
                 draw = 1'b1;
-                // reset_erase_hold = 1'b1;
             end
            
 			MOVE: begin
 				enable_move = 1'b1;
                 reset1 = 1'b1;
-                // reset_move_hold = 1'b1;
 			end
             
             DRAW: begin
-                // reset_draw_hold = 1'b1;
                 enable_color = 1'b1;
                 writeEn = 1'b1;
                 draw = 1'b1;
@@ -110,8 +104,7 @@ module datapath_ball(
         .enable_move(enable_move),
 		  .x_paddle(x_paddle),
         .x_out(x_pos),
-        .y_out(y_pos)
-        // .move_done(move_done)     
+        .y_out(y_pos)  
     );
 
     ball_draw data(
@@ -123,8 +116,16 @@ module datapath_ball(
         .y_out(y_out),
         .done(draw_done)
     );
-
-    assign color_out = enable_color ? 3'b111 : 3'b000;
+    wire change_color;
+    timer_l t8(clk, resetn, 1'b1, 26'd1, change_color);
+    reg [2:0] count;
+    always @(posedge change_color) begin
+        if (count == 3'b110)
+            count <= 3'b001;
+        else
+            count <= count + 1'b1;
+    end
+    assign color_out = enable_color ? count : 3'b000;
 
 endmodule
 
@@ -148,7 +149,7 @@ module ball_draw(
 		else
 			count <= count + 1'b1;
 	end
-    assign done = (count == 4'b1111);  //// add more time; need reset time
+    assign done = (count == 4'b1111);  
 	assign x_out = x_in + count[1:0];
 	assign y_out = y_in + count[3:2];
 
@@ -160,9 +161,7 @@ module xy_counter_ball(
 	 input [7:0] x_paddle,
     output reg [7:0] x_out,
     output reg [6:0] y_out
-    // output move_done
 );
-    // x_counter
     reg done;
     wire enable_move1;
     assign enable_move1 = enable_move;
@@ -180,29 +179,13 @@ module xy_counter_ball(
 				y_out <= y_out + 1'b1;
 			else if (!y_direction)
 				y_out <= y_out - 1'b1;
-            // done <= 1'b1;
         end
-        // else if (!enable_move1)
-        //     done <= 1'b0;
+       
     end
 
-    // assign move_done = enable_move & done;
-    
-    // y_counter
-    // always@(posedge enable_move, negedge resetn) begin
-	// 	if (!resetn)
-			
-	// 	else begin
-	// 		if (y_direction)
-	// 			y_out <= y_out + 1'b1;
-	// 		else
-	// 			y_out <= y_out - 1'b1;
-	// 	end
-	// end
 
     reg x_direction;
     reg y_direction;
-    // x_direction
     always @(posedge clk) begin
             if (!resetn)
                 x_direction <= 1;
@@ -227,7 +210,6 @@ module xy_counter_ball(
             end
 
         end
-    // y_direction
     always @(posedge clk) begin
 		if (!resetn)
 			y_direction <= 1;
@@ -238,18 +220,12 @@ module xy_counter_ball(
 				else
 					y_direction <= 1'b1;
 			end
-
 			else begin
 				if (y_out == 7'b0000000)
 					y_direction <= 1'b1;
 				else
 					y_direction <= 1'b0;
 			end
-
 		end
-
 	end
-
 endmodule
-
-

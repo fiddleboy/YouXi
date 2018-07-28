@@ -15,11 +15,13 @@ module game(
 		VGA_R,   						//	VGA Red[9:0]
 		VGA_G,	 						//	VGA Green[9:0]
 		VGA_B,   						//	VGA Blue[9:0]
-        LEDR,
-		HEX0,
-		HEX1,
-		HEX2,
-		HEX3
+        LEDR
+		// HEX0,
+		// HEX1,
+		// HEX2,
+		// HEX3,
+		// HEX4,
+		// HEX5
 );
 
 
@@ -38,10 +40,12 @@ module game(
 	output	[9:0]	VGA_G;	 				//	VGA Green[9:0]
 	output	[9:0]	VGA_B;   				//	VGA Blue[9:0]
     output  [9:0]   LEDR;
-	output  [6:0] 	HEX0;
-	output  [6:0] 	HEX1;
-	output  [6:0] 	HEX2;
-	output  [6:0] 	HEX3;
+	// output  [6:0] 	HEX0;
+	// output  [6:0] 	HEX1;
+	// output  [6:0] 	HEX2;
+	// output  [6:0] 	HEX3;
+	// output  [6:0] 	HEX4;
+	// output  [6:0] 	HEX5;
 	
 //	hex_decoder hex0(x[3:0], HEX0[6:0]);
 //	hex_decoder hex1(x[7:4], HEX1[6:0]);
@@ -93,8 +97,7 @@ module game(
     
 
 	
-    wire en_ball, en_pad, paddle_done, ball_done;
-	wire hold, hold1, draw_hold;
+    wire paddle_done, ball_done;
     control_game(
         .clk(CLOCK_50),
         .resetn(resetn),
@@ -104,15 +107,9 @@ module game(
         .writeEn(writeEn),
         .x_out(x),
         .y_out(y),
-        .color_out(colour),
-        .enable_ball(en_ball),
-        .enable_paddle(en_pad),
-		.paddle_done(paddle_done),
-		.ball_done(ball_done)
+        .color_out(colour)
     );  
-    assign LEDR[1] = en_pad;
-	assign LEDR[2] = paddle_done;
-	assign LEDR[3] = ball_done;
+    
 	// assign LEDR[7] = hold;
 	// assign LEDR[8] = hold1;
 	// assign LEDR[9] = draw_hold;
@@ -127,12 +124,10 @@ module control_game(
 	input clk, resetn, go, left, right, 
 	output writeEn,
 	output reg [7:0] x_out, 
-	output reg [6:0] y_out, 
-	output reg enable_ball, enable_paddle, 
-	output reg [2:0] color_out,
-	output paddle_done, ball_done
+	output reg [6:0] y_out,
+	output reg [2:0] color_out
     );
-
+	reg enable_ball, enable_paddle;
     wire writeEn0, writeEn1;
     wire enable_color_ball, enable_color_paddle, enable_move_ball, enable_move_paddle;
     wire [7:0] x_ball, x_paddle; 

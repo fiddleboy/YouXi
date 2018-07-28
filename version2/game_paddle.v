@@ -1,9 +1,7 @@
-// paddle
 module control_paddle(
 	input clk, resetn, go, draw_done,
 	output reg enable_color, enable_move, writeEn, draw,
     output reg done
-    // output hold, hold1, draw_hold
     );
     
     wire hold, hold1;
@@ -38,7 +36,6 @@ module control_paddle(
 				MOVE = 4'd2,                 
 				DRAW = 4'd3,
                 DONE1 = 4'd4;
-	//state table
     
     always @(*)
     begin: state_table
@@ -109,8 +106,7 @@ module datapath_paddle(
 		.left(left),
 		.right(right),
         .x_out(x_pos),
-        .y_out(y_pos)
-        // .move_done(move_done)				        
+        .y_out(y_pos)			        
     );
 
     paddle_draw data(
@@ -149,7 +145,7 @@ module paddle_draw(
 			count <= count + 1'b1;
 	end
 
-    assign done = (count == 4'b1111);  //// add more time; need reset time
+    assign done = (count == 4'b1111);
 	assign x_out = x_in + count[3:0];
 	assign y_out = y_in;
 
@@ -160,36 +156,27 @@ module xy_counter_paddle(
     input clk, resetn, enable_move, left, right,
     output reg [7:0] x_out,
     output [6:0] y_out
-    // output move_done
 );
-    // x_counter    
-    // reg done;
-    // wire enable_move1;
-    // assign enable_move1 = enable_move;
 
     always@(posedge enable_move, negedge resetn) begin
             if (!resetn)
                 x_out <= 8'd75;
             else if (enable_move) begin
                 if (right) begin
-                    if (x_out + 13 > 8'd156)
+                    if (x_out + 4'd13 > 8'd160)
                         x_out <= x_out;               
                     else
                         x_out <= x_out + 1'b1;
                 end
                 else if (left) begin
-					if (x_out <= 8'd2)
+					if (x_out <= 8'd0)
 						 x_out <= x_out;
 					else
                     	x_out <= x_out - 1'b1;
             	end
-                // done <= 1'b1;
 			end
 
-            // else if (!enable_move1)
-            //     done <= 1'b0;
     end
-    // assign move_done = enable_move & done;
     assign y_out = 7'd110;
 
 endmodule
