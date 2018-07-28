@@ -1,4 +1,5 @@
 `include "timer.v"
+
 module game(
     CLOCK_50,						//	On Board 50 MHz
 		// Your inputs and outputs here
@@ -13,7 +14,11 @@ module game(
 		VGA_R,   						//	VGA Red[9:0]
 		VGA_G,	 						//	VGA Green[9:0]
 		VGA_B,   						//	VGA Blue[9:0]
-        LEDR
+        LEDR,
+		HEX0,
+		HEX1,
+		HEX2,
+		HEX3
 );
 
 
@@ -32,15 +37,23 @@ module game(
 	output	[9:0]	VGA_G;	 				//	VGA Green[9:0]
 	output	[9:0]	VGA_B;   				//	VGA Blue[9:0]
     output  [9:0]   LEDR;
+	output  [6:0] 	HEX0;
+	output  [6:0] 	HEX1;
+	output  [6:0] 	HEX2;
+	output  [6:0] 	HEX3;
 	
+//	hex_decoder hex0(x[3:0], HEX0[6:0]);
+//	hex_decoder hex1(x[7:4], HEX1[6:0]);
+//	hex_decoder hex2(y[3:0], HEX2[6:0]);
+//	hex_decoder hex3(y[6:4], HEX3[6:0]);
+
 	wire resetn;
 	assign resetn = KEY[0];
-	
 	// Create the colour, x, y and writeEn wires that are inputs to the controller.
 	wire [2:0] colour;
 	wire [7:0] x;
 	wire [6:0] y;
-	
+	wire writeEn;
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -67,132 +80,152 @@ module game(
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
 
 
-
-
 	wire left, right;
 	assign left = !KEY[3];
 	assign right = !KEY[2];
 
-    wire writeEn, ld_x, ld_y, ld_color, enable_color, enable_move;
+    wire draw_done, draw, move_done;
 
-	datapath_paddle p0(
-		.clk(CLOCK_50),
-		.resetn(resetn),
-        .enable_color(enable_color),
-        .enable_move(enable_move),
-		.left(left),
-		.right(right),
-		.x_out(x),
-		.y_out(y),		
-		.color_out(colour)
-	);
-    wire hold;
     control_paddle c1(
+        .clk(CLOCK_50), 
+        .resetn(resetn), 
+        .go(1'b1),
+		.draw_done(draw_done),
+		.move_done(move_done),
+        .enable_color(enable_color_ball),
+        .enable_move(enable_move_ball),
+        .writeEn(writeEn),
+        .draw(draw),
+        .done(ball_done)		
+        );	
+
+
+    datapath_paddle p0(
 		.clk(CLOCK_50),
 		.resetn(resetn),
-		.go(!(KEY[1])),
-		.enable_color(enable_color),
-        .enable_move(enable_move),
-		.writeEn(writeEn),
+        .enable_color(enable_color_ball),
+        .enable_move(enable_move_ball),
+        .left(left),
+        .right(right),
+		.draw(draw),
+		.x_out(x),
+		.y_out(y),
+		.color_out(colour),
+		.draw_done(draw_done)
 	);
-
+    // assign LEDR[1] = en_pad;
+	// assign LEDR[2] = paddle_done;
+	// assign LEDR[1] = ball_done;
+    // assign LEDR[0] = move_done;
+	// assign LEDR[7] = hold;
+	// assign LEDR[8] = hold1;
+	// assign LEDR[9] = draw_hold;
     // assign LEDR[9] = hold;
     // assign LEDR[0] = enable_color;
     // assign LEDR[1] = enable_move;
     // assign LEDR[2] = writeEn;
-
 endmodule
 
-
+// paddle
 module control_paddle(
-    input clk, resetn, go,
-	output reg enable_color, enable_move, writeEn, done
+	input clk, resetn, go, draw_done, move_done,
+	output reg enable_color, enable_move, writeEn, draw,
+    output reg done
+    // output hold, hold1, draw_hold
     );
-	reg reset_draw_hold;
-    wire hold, hold1, draw_hold;
+    
+    wire hold, hold1;
 	
-	timer_1_10000_l t00(.clk(clk), .resetn(resetn), .enable(1'b1), .time_up(hold));
-	timer_1_10000_s t01(.clk(clk), .resetn(resetn), .enable(1'b1), .time_up(hold1));
-    timer_1_8_l t1(.clk(clk), .resetn(resetn), .enable(1'b1), .time_up(draw_hold));
+	timer_l t002(
+        .clk(clk), 
+        .resetn(reset), 
+        .enable(1'b1), 
+        .dividend(26'd32), 
+        .time_up(hold)
+        );
+    timer_l t003(
+        .clk(clk), 
+        .resetn(reset1), 
+        .enable(1'b1),
+        .dividend(26'd10000000),
+        .time_up(hold1)
+        );
 
 	reg [2:0] current_state, next_state;
 
+
     always @(posedge clk) begin
 		if (!resetn)
-			current_state <= ERASE;
+			current_state <= DONE1;
 		else
 			current_state <= next_state;
 	end
 
-	localparam  ERASE = 3'd0,
-                ERASE_WAIT = 3'd1,
-				MOVE = 3'd2,
-                MOVE_WAIT = 3'd3,                 
-				DRAW = 3'd4,
-                DRAW_WAIT = 3'd5,
-				DONE = 3'd6;                
+	localparam  WAIT = 4'd0, 
+                ERASE = 4'd1,
+				MOVE = 4'd2,                 
+				DRAW = 4'd3,
+                DONE1 = 4'd4;
 	//state table
-	always @(*) 
-	begin: state_table
-		case (current_state)
-			ERASE: next_state = hold ? ERASE_WAIT : ERASE;
-            ERASE_WAIT: next_state = hold ? ERASE_WAIT : MOVE;
-			MOVE: next_state = hold1 ? MOVE_WAIT : MOVE;
-            MOVE_WAIT: next_state = hold1 ? MOVE_WAIT : DRAW;                            
-			DRAW: next_state = draw_hold ? DRAW : DRAW_WAIT;
-            DRAW_WAIT: next_state = draw_hold ? ERASE : DRAW_WAIT;
-			// DONE: next_state = start_over ? ERASE : DONE;
-			default: next_state = ERASE;
+    
+    always @(*)
+    begin: state_table
+        case (current_state)
+            WAIT: next_state = go ? ERASE : WAIT;
+            ERASE: next_state = draw_done ? MOVE : ERASE;
+            MOVE: next_state = hold1 ? DRAW : MOVE;
+            DRAW: next_state = draw_done ? DONE1 : DRAW;
+            DONE1: next_state = hold ? WAIT : DONE1;
 		endcase
-	end
+	 end
 
+    reg reset, reset1;
 	always @(*)
 	begin
 		writeEn = 1'b0;
 		enable_color = 1'b0;
         enable_move = 1'b0;
         writeEn = 1'b0;
-		done = 1'b0;
-		reset_draw_hold = 1'b0;
+        draw = 1'b0;
+        reset = 1'b0;
+        reset1 = 1'b0;
+        done = 1'b0;
+
 		case (current_state)
-			
+			WAIT: begin
+            end
 			ERASE: begin
                 writeEn = 1'b1;
+                draw = 1'b1;
             end
-            ERASE_WAIT: begin
-                writeEn = 1'b1;                
-            end            
+           
 			MOVE: begin
 				enable_move = 1'b1;
+                reset1 = 1'b1;
 			end
-            MOVE_WAIT: begin
-                enable_move = 1'b1;
-            end
+            
             DRAW: begin
                 enable_color = 1'b1;
-                enable_move = 1'b0;
-                writeEn = 1'b1;                
+                writeEn = 1'b1;
+                draw = 1'b1;
             end
-            DRAW_WAIT: begin
-                enable_color = 1'b1;
-                enable_move = 1'b0;
-                writeEn = 1'b1; 
+            DONE1: begin
+                done = 1'b1;
+                reset = 1'b1;
             end
-			DONE: begin
-				done = 1'b1;
-			end
 		endcase
 	end
 
 endmodule
 
 
-
 module datapath_paddle(
-    input clk, resetn, enable_color, enable_move, left, right,
+    input clk, resetn, enable_color, enable_move, left, right, draw,
     output [7:0] x_out,
 	output [6:0] y_out,
-	output [2:0] color_out
+	output [2:0] color_out,
+    output draw_done
+
 );
 
     wire [7:0] x_pos;
@@ -204,42 +237,47 @@ module datapath_paddle(
 		.left(left),
 		.right(right),
         .x_out(x_pos),
-        .y_out(y_pos)				        
+        .y_out(y_pos)
+        // .move_done(move_done)				        
     );
 
     paddle_draw data(
         .clk(clk),
-        .resetn(resetn),
+        .draw(draw),    
         .x_in(x_pos),
         .y_in(y_pos),
         .x_out(x_out),
-        .y_out(y_out)        
+        .y_out(y_out),
+        .done(draw_done)        
     );
 
-    assign color_out = enable_color ? 3'b111 : 3'b000;
+    assign color_out = enable_color ? 3'b111 : 3'b011;
 
 endmodule
 
 
 module paddle_draw(
-	input clk, resetn,
+	input clk, draw,
 	input [7:0] x_in, 
 	input [6:0] y_in,
 	output [7:0] x_out, 
-	output [6:0] y_out
+	output [6:0] y_out,
+    output done 
 );
-
+	wire resetn;
 	reg [3:0] count;
-	
+	assign resetn = draw;
+
 	always @(posedge clk) begin
 		if (!resetn)
 			count <= 4'b0000;
-		else if (count >= 1100)
-				count <= 4'b0000;
+		else if (count == 4'b1111)
+			count <= 4'b0000;
 		else
-				count <= count + 1'b1;
+			count <= count + 1'b1;
 	end
 
+    assign done = (count == 4'b1111);  //// add more time; need reset time
 	assign x_out = x_in + count[3:0];
 	assign y_out = y_in;
 
@@ -250,14 +288,19 @@ module xy_counter_paddle(
     input clk, resetn, enable_move, left, right,
     output reg [7:0] x_out,
     output [6:0] y_out
+    // output move_done
 );
     // x_counter    
+    // reg done;
+    // wire enable_move1;
+    // assign enable_move1 = enable_move;
+
     always@(posedge enable_move, negedge resetn) begin
             if (!resetn)
-                x_out <= 8'd50;
-            else begin
+                x_out <= 8'd75;
+            else if (enable_move) begin
                 if (right) begin
-                    if (x_out + 1 > 8'd156)
+                    if (x_out + 13 > 8'd156)
                         x_out <= x_out;               
                     else
                         x_out <= x_out + 1'b1;
@@ -268,9 +311,13 @@ module xy_counter_paddle(
 					else
                     	x_out <= x_out - 1'b1;
             	end
+                // done <= 1'b1;
 			end
+
+            // else if (!enable_move1)
+            //     done <= 1'b0;
     end
-    assign y_out = 7'd60;
+    // assign move_done = enable_move & done;
+    assign y_out = 7'd110;
 
 endmodule
-
