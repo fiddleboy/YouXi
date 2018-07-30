@@ -1,4 +1,4 @@
-module control_paddle(
+module control_paddle_top(
 	input clk, resetn, go, draw_done,
 	output reg enable_color, enable_move, writeEn, draw,
     output reg done
@@ -88,7 +88,7 @@ module control_paddle(
 endmodule
 
 
-module datapath_paddle(
+module datapath_paddle_top(
     input clk, resetn, enable_color, enable_move, left, right, draw,
     output [7:0] x_out,
 	output [6:0] y_out,
@@ -99,7 +99,7 @@ module datapath_paddle(
 
     wire [7:0] x_pos;
     wire [6:0] y_pos;
-    xy_counter_paddle movement(
+    xy_counter_paddle_top movement1(
         .clk(clk),
         .resetn(resetn),
 		.enable_move(enable_move),
@@ -109,7 +109,7 @@ module datapath_paddle(
         .y_out(y_pos)			        
     );
 
-    paddle_draw data(
+    paddle_draw_top data1(
         .clk(clk),
         .draw(draw),    
         .x_in(x_pos),
@@ -124,7 +124,7 @@ module datapath_paddle(
 endmodule
 
 
-module paddle_draw(
+module paddle_draw_top(
 	input clk, draw,
 	input [7:0] x_in, 
 	input [6:0] y_in,
@@ -152,7 +152,7 @@ module paddle_draw(
 endmodule
 
 
-module xy_counter_paddle(
+module xy_counter_paddle_top(
     input clk, resetn, enable_move, left, right,
     output reg [7:0] x_out,
     output [6:0] y_out
@@ -163,7 +163,7 @@ module xy_counter_paddle(
                 x_out <= 8'd75;
             else if (enable_move) begin
                 if (right) begin
-                    if (x_out + 5'd17 > 8'd110)
+                    if (x_out +5'd17 > 8'd110)
                         x_out <= x_out;               
                     else
                         x_out <= x_out + 1'b1;
@@ -177,6 +177,6 @@ module xy_counter_paddle(
 			end
 
     end
-    assign y_out = 7'd108;
+    assign y_out = 7'd12;
 
 endmodule

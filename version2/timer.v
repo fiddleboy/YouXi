@@ -1,4 +1,3 @@
-
 module timer_s(
     input clk, resetn, enable, 
     input [25:0] dividend,

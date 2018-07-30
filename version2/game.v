@@ -1,6 +1,8 @@
 `include "timer.v"
 `include "game_ball.v"
 `include "game_paddle.v"
+`include "game_paddle_top.v"
+`include "draw_border.v"
 module game(
     CLOCK_50,						//	On Board 50 MHz
 		// Your inputs and outputs here
@@ -23,7 +25,6 @@ module game(
 		// HEX4,
 		// HEX5
 );
-
 
 	input			CLOCK_50;				//	50 MHz
 	input   [9:0]   SW;
@@ -51,23 +52,31 @@ module game(
 //	hex_decoder hex1(x[7:4], HEX1[6:0]);
 //	hex_decoder hex2(y[3:0], HEX2[6:0]);
 //	hex_decoder hex3(y[6:4], HEX3[6:0]);
+	// reg left_top, right_top;
+	// always @(*) begin
+	// 	if (SW[1] & ~SW[0]) begin
+	// 		left_top = 1'b1;
+	// 		right_top = 1'b0;
+	// 	end
+	// 	else if (SW[0] & ~SW[1]) begin
+	// 		right_top = 1'b1;
+	// 		left_top = 1'b0;
+	// 	end
+	// 	else begin
+	// 		left_top = 1'b0;
+	// 		right_top = 1'b0;
+	// 	end
 
-
-
-
+	// end
 
 	wire resetn;
-	assign resetn = KEY[0];
+	assign resetn = SW[0];
 	
-	// Create the colour, x, y and writeEn wires that are inputs to the controller.
 	wire [2:0] colour;
 	wire [7:0] x;
 	wire [6:0] y;
 	wire writeEn;
 
-	// Create an Instance of a VGA controller - there can be only one!
-	// Define the number of colours as well as the initial background
-	// image file (.MIF) for the controller.
 	vga_adapter VGA(
 			.resetn(resetn),
 			.clock(CLOCK_50),
@@ -89,46 +98,38 @@ module game(
 		defparam VGA.BITS_PER_COLOUR_CHANNEL = 1;
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
 
-
-	wire left, right;
+	wire left, right, left_top, right_top;
 	assign left = !KEY[3];
 	assign right = !KEY[2];
-
-    
-
-	
-    wire paddle_done, ball_done;
+	assign left_top = !KEY[1];
+	assign right_top = !KEY[0];
+    wire paddle_done, ball_done, c;
     control_game(
         .clk(CLOCK_50),
         .resetn(resetn),
         .go(1'b1),
         .left(left),
         .right(right),
+		.left_top(left_top),
+  		.right_top(right_top),		
         .writeEn(writeEn),
         .x_out(x),
         .y_out(y),
         .color_out(colour)
     );  
-    
-	// assign LEDR[7] = hold;
-	// assign LEDR[8] = hold1;
-	// assign LEDR[9] = draw_hold;
-    // assign LEDR[9] = hold;
-    // assign LEDR[0] = enable_color;
-    // assign LEDR[1] = enable_move;
-    // assign LEDR[2] = writeEn;
+
 endmodule
 
 
 module control_game(
-	input clk, resetn, go, left, right, 
+	input clk, resetn, go, left, right, left_top, right_top,
 	output writeEn,
 	output reg [7:0] x_out, 
 	output reg [6:0] y_out,
 	output reg [2:0] color_out
     );
-	reg enable_ball, enable_paddle;
-    wire writeEn0, writeEn1;
+	reg enable_ball, enable_paddle, enable_border;
+    wire writeEn0, writeEn1, writeEn2;
     wire enable_color_ball, enable_color_paddle, enable_move_ball, enable_move_paddle;
     wire [7:0] x_ball, x_paddle; 
 	wire [6:0] y_ball, y_paddle;
@@ -137,41 +138,64 @@ module control_game(
 	reg [2:0] current_state, next_state;
     always @(posedge clk) begin
 		if (!resetn)
-			current_state <= DRAW_BALL;
+			current_state <= DRAW_BORDER;
 		else
 			current_state <= next_state;
 	end
 
-	localparam  DRAW_BALL = 3'd0,
-                DRAW_PADDLE = 3'd1;
-
-	// wire done_signal;
-	// timer_l t100(.clk(clk), .resetn(resetn), .enable(1'b1), .dividend(26'd1), .time_up(done_signal));
-
+	localparam  DRAW_BORDER = 3'd0,
+				DRAW_BALL = 3'd1,
+                DRAW_PADDLE = 3'd2,
+				DRAW_PADDLE_TOP = 3'd3;
 
 	always @(*) 
 	begin: state_table
 		case (current_state)
+			DRAW_BORDER: next_state = draw_done_border ? DRAW_BALL : DRAW_BORDER;
 			DRAW_BALL: next_state = ball_done ? DRAW_PADDLE : DRAW_BALL;
-            DRAW_PADDLE: next_state = paddle_done ? DRAW_BALL : DRAW_PADDLE;
-			default: next_state = DRAW_BALL;
+            DRAW_PADDLE: next_state = paddle_done ? DRAW_PADDLE_TOP : DRAW_PADDLE;
+			DRAW_PADDLE_TOP: next_state = paddle_top_done ? DRAW_BALL : DRAW_PADDLE_TOP;
+			default: next_state = DRAW_BORDER;
 		endcase
 	end
-
+	reg enable_paddle_top;
 	always @(*)
 	begin
         enable_ball = 1'b0;
         enable_paddle = 1'b0;
+		enable_border = 1'b0;
+		enable_paddle_top = 1'b0;
 
 		case (current_state)
+			DRAW_BORDER: begin
+				enable_border = 1'b1;
+			end
 			DRAW_BALL: begin
                 enable_ball = 1'b1;
             end
             DRAW_PADDLE: begin
                 enable_paddle = 1'b1;
             end
+			DRAW_PADDLE_TOP: begin
+				enable_paddle_top = 1'b1;
+			end
 		endcase
 	end
+
+	wire draw_done_border;
+	wire [7:0] x_border;
+	wire [6:0] y_border;
+	wire [2:0] color_border;
+	draw_border d0(
+		.clk(clk),
+		.resetn(resetn),
+		.go(enable_border),
+		.done(draw_done_border),
+		.writeEn(writeEn2),
+		.x_out(x_border),
+		.y_out(y_border),
+		.color_out(color_border)
+	);
 
 	wire draw, draw1;
 	control_paddle c0(
@@ -185,6 +209,19 @@ module control_game(
 		.done(paddle_done),
 		.draw(draw)
 		);
+	wire draw_done2, enable_color_paddle_top, enable_move_paddle_top, writeEn3, paddle_top_done;
+	wire draw2;
+	control_paddle_top c2(
+		.clk(clk), 
+		.resetn(resetn), 
+		.go(enable_paddle_top), 
+		.draw_done(draw_done2),
+		.enable_color(enable_color_paddle_top), 
+		.enable_move(enable_move_paddle_top), 
+		.writeEn(writeEn3), 
+		.done(paddle_top_done),
+		.draw(draw2)
+		);
 	
     control_ball c1(
         .clk(clk), 
@@ -195,18 +232,22 @@ module control_game(
         .enable_move(enable_move_ball),
         .writeEn(writeEn1),
 		.draw(draw1),
-        .done(ball_done)
+        .done(ball_done),
+		.reset_counter(reset_counter)
         );	
 	
-	assign writeEn = writeEn0 | writeEn1;
-	wire draw_done, draw_done1;
+	assign writeEn = (writeEn0 | writeEn1 |writeEn2 | writeEn3);
+	wire draw_done, draw_done1, reset_counter;
+	
 	datapath_ball p0(
 		.clk(clk),
 		.resetn(resetn),
         .enable_color(enable_color_ball),
         .enable_move(enable_move_ball),
 		.draw(draw1),
+		.reset_counter(reset_counter),
 		.x_paddle(x_paddle),
+		.x_paddle_top(x_paddle_top),
 		.x_out(x_ball),
 		.y_out(y_ball),
 		.color_out(color_ball),
@@ -227,23 +268,45 @@ module control_game(
 		.draw_done(draw_done1),
 	);
 
+	wire [2:0] color_paddle_top;
+	wire [7:0] x_paddle_top;
+	wire [6:0] y_paddle_top;
+	datapath_paddle_top p2(
+		.clk(clk),
+		.resetn(resetn),
+        .enable_color(enable_color_paddle_top),
+        .enable_move(enable_move_paddle_top),
+		.left(left_top),
+		.right(right_top),
+		.draw(draw2),
+		.x_out(x_paddle_top),
+		.y_out(y_paddle_top),		
+		.color_out(color_paddle_top),
+		.draw_done(draw_done2),
+	);
+
     always @(*) begin
-        if (enable_ball & ~enable_paddle) begin
-            x_out = x_ball;
-            y_out = y_ball;
-            color_out = color_ball;
-        end
-        else if (enable_paddle & ~enable_ball) begin
-            x_out = x_paddle;
-            y_out = y_paddle;
-            color_out = color_paddle;
-        end
+		if (enable_border) begin
+			x_out = x_border;
+			y_out = y_border;
+			color_out = color_border;
+		end
+		else if (enable_ball) begin
+			x_out = x_ball;
+			y_out = y_ball;
+			color_out = color_ball;
+		end
+		else if (enable_paddle) begin
+			x_out = x_paddle;
+			y_out = y_paddle;
+			color_out = color_paddle;
+		end
+		else if (enable_paddle_top) begin
+			x_out = x_paddle_top;
+			y_out = y_paddle_top;
+			color_out = color_paddle_top;			
+		end
     end
-	// always @(*) begin
-	// 	x_out = x_ball;
-    // 	y_out = y_ball;
-    // 	color_out = color_ball;
-	// end
 
 endmodule
 
